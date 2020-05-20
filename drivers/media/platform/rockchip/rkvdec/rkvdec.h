@@ -11,10 +11,11 @@
 #ifndef RKVDEC_H_
 #define RKVDEC_H_
 
+#include <linux/clk.h>
 #include <linux/platform_device.h>
+#include <linux/reset.h>
 #include <linux/videodev2.h>
 #include <linux/wait.h>
-#include <linux/clk.h>
 
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-device.h>
@@ -28,6 +29,11 @@
 #define RKVDEC_1080P_PIXELS		(1920 * 1088)
 #define RKVDEC_4K_PIXELS		(4096 * 2304)
 #define RKVDEC_8K_PIXELS		(7680 * 4320)
+#define RESET_NONE		0
+#define RESET_SOFT		BIT(0)
+#define RESET_HARD		BIT(1)
+
+#define RKVDEC_RESET_DELAY	5
 
 struct rkvdec_ctx;
 struct rkvdec_rcb_config;
@@ -142,6 +148,8 @@ struct rkvdec_dev {
 	struct iommu_domain *iommu_domain;
 	struct iommu_domain *empty_domain;
 	const struct rkvdec_variant *variant;
+	struct reset_control *rstc;
+	u8 reset_mask;
 };
 
 struct rkvdec_ctx {
