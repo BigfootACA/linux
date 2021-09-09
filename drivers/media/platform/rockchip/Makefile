@@ -4,3 +4,4 @@ obj-y += rkcif/
 obj-y += rkcsi/
 obj-y += rkisp1/
 obj-y += rkvdec/
+obj-y += iep/
