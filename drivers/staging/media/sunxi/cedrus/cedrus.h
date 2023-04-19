@@ -176,7 +176,6 @@ struct cedrus_dev {
 	struct v4l2_device	v4l2_dev;
 	struct video_device	vfd;
 	struct media_device	mdev;
-	struct platform_device	*pdev;
 	struct device		*dev;
 	struct v4l2_m2m_dev	*m2m_dev;
 

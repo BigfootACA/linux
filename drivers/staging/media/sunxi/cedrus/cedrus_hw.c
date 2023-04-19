@@ -226,7 +226,7 @@ err_rst:
 	return ret;
 }
 
-int cedrus_hw_probe(struct cedrus_dev *dev)
+int cedrus_hw_probe(struct cedrus_dev *dev, struct platform_device *pdev)
 {
 	const struct cedrus_variant *variant;
 	int irq_dec;
@@ -238,7 +238,7 @@ int cedrus_hw_probe(struct cedrus_dev *dev)
 
 	dev->capabilities = variant->capabilities;
 
-	irq_dec = platform_get_irq(dev->pdev, 0);
+	irq_dec = platform_get_irq(pdev, 0);
 	if (irq_dec <= 0)
 		return irq_dec;
 	ret = devm_request_irq(dev->dev, irq_dec, cedrus_irq,
@@ -295,7 +295,7 @@ int cedrus_hw_probe(struct cedrus_dev *dev)
 		goto err_sram;
 	}
 
-	dev->base = devm_platform_ioremap_resource(dev->pdev, 0);
+	dev->base = devm_platform_ioremap_resource(pdev, 0);
 	if (IS_ERR(dev->base)) {
 		dev_err(dev->dev, "Failed to map registers\n");
 

@@ -463,9 +463,8 @@ static int cedrus_probe(struct platform_device *pdev)
 
 	dev->vfd = cedrus_video_device;
 	dev->dev = &pdev->dev;
-	dev->pdev = pdev;
 
-	ret = cedrus_hw_probe(dev);
+	ret = cedrus_hw_probe(dev, pdev);
 	if (ret) {
 		dev_err(&pdev->dev, "Failed to probe hardware\n");
 		return ret;
