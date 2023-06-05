@@ -116,6 +116,14 @@ static const u32 yuv2rgb_de3[2][3][12] = {
 	},
 };
 
+static u32 sun8i_csc_base(struct sun8i_layer *layer)
+{
+	if (layer->cfg->de_type == SUN8I_MIXER_DE33)
+		return sun8i_channel_base(layer) - 0x200;
+	else
+		return ccsc_base[layer->cfg->ccsc][layer->channel];
+}
+
 static void sun8i_csc_setup(struct regmap *map, u32 base,
 			    enum sun8i_csc_mode mode,
 			    enum drm_color_encoding encoding,
@@ -200,6 +208,64 @@ static void sun8i_de3_ccsc_setup(struct regmap *map, int layer,
 		DRM_WARN("Wrong CSC mode specified.\n");
 		return;
 	}
+}
+
+static void sun8i_de33_ccsc_set_coefficients(struct sun8i_layer *layer,
+					     enum sun8i_csc_mode mode,
+					     enum drm_color_encoding encoding,
+					     enum drm_color_range range)
+{
+	const u32 *table;
+	u32 base, addr;
+	int i;
+
+	base = sun8i_csc_base(layer);
+	table = yuv2rgb_de3[range][encoding];
+
+	regmap_write(layer->regs, base + 4, table[3] >> 16);
+	regmap_write(layer->regs, base + 8, table[7] >> 16);
+	regmap_write(layer->regs, base + 12, table[11] >> 16);
+
+	for (i = 0; i < 12; i++) {
+		u32 val = table[i];
+
+		addr = SUN8I_CSC_COEFF(base, i);
+		if (mode == SUN8I_CSC_MODE_YVU2RGB) {
+			if ((i & 3) == 1)
+				addr = SUN8I_CSC_COEFF(base, i + 1);
+			else if ((i & 3) == 2)
+				addr = SUN8I_CSC_COEFF(base, i - 1);
+		}
+
+		if (i == 3 || i == 7 || i == 11)
+			val &= 0xffff;
+
+		regmap_write(layer->regs, addr, val);
+	}
+}
+
+static void sun8i_csc_enable(struct regmap *map, u32 base, bool enable)
+{
+	u32 val;
+
+	if (enable)
+		val = SUN8I_CSC_CTRL_EN;
+	else
+		val = 0;
+
+	regmap_update_bits(map, SUN8I_CSC_CTRL(base), SUN8I_CSC_CTRL_EN, val);
+}
+
+static void sun8i_de3_ccsc_enable(struct regmap *map, int layer, bool enable)
+{
+	u32 val, mask;
+
+	mask = SUN50I_MIXER_BLEND_CSC_CTL_EN(layer);
+
+	if (enable)
+		val = mask;
+	else
+		val = 0;
 
 	regmap_update_bits(map, SUN50I_MIXER_BLEND_CSC_CTL(DE3_BLD_BASE),
 			   mask, val);
@@ -237,6 +303,19 @@ void sun8i_csc_config(struct sun8i_layer *layer,
 		sun8i_de3_ccsc_setup(layer->regs, layer->channel,
 				     mode, state->color_encoding,
 				     state->color_range);
+		return;
+	}
+
+	base = ccsc_base[layer->cfg->ccsc][layer->channel];
+
+	sun8i_csc_setup(layer->regs, base,
+			mode, state->color_encoding,
+			state->color_range);
+
+	if (layer->cfg->de_type == SUN8I_MIXER_DE33) {
+		sun8i_de33_ccsc_set_coefficients(layer, mode,
+						 state->color_encoding,
+						 state->color_range);
 		return;
 	}
 
