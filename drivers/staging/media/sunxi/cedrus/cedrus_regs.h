@@ -1,10 +1,14 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Cedrus VPU driver
+ * Cedrus Video Engine Driver
  *
- * Copyright (c) 2013-2016 Jens Kuske <jenskuske@gmail.com>
- * Copyright (C) 2016 Florent Revest <florent.revest@free-electrons.com>
- * Copyright (C) 2018 Paul Kocialkowski <paul.kocialkowski@bootlin.com>
+ * Copyright 2013-2016 Jens Kuske <jenskuske@gmail.com>
+ * Copyright 2016 Florent Revest <florent.revest@free-electrons.com>
+ * Copyright 2018 Paul Kocialkowski <paul.kocialkowski@bootlin.com>
+ * Copyright 2018-2023 Bootlin
+ * Author: Paul Kocialkowski <paul.kocialkowski@bootlin.com>
+ * Author: Maxime Ripard <maxime.ripard@bootlin.com>
+ * Copyright 2019 Jernej Skrabec <jernej.skrabec@siol.net>
  */
 
 #ifndef _CEDRUS_REGS_H_
@@ -33,18 +37,36 @@
 #define VE_ENGINE_DEC_H264			0x200
 #define VE_ENGINE_DEC_H265			0x500
 
-#define VE_MODE					0x00
+/* Top-Level Registers */
 
+#define VE_MODE_REG				0x00
+#define VE_MODE_RAMPD				BIT(31)
 #define VE_MODE_PIC_WIDTH_IS_4096		BIT(22)
 #define VE_MODE_PIC_WIDTH_MORE_2048		BIT(21)
-#define VE_MODE_REC_WR_MODE_2MB			(0x01 << 20)
-#define VE_MODE_REC_WR_MODE_1MB			(0x00 << 20)
-#define VE_MODE_DDR_MODE_BW_128			(0x03 << 16)
-#define VE_MODE_DDR_MODE_BW_256			(0x02 << 16)
-#define VE_MODE_DISABLED			(0x07 << 0)
-#define VE_MODE_DEC_H265			(0x04 << 0)
-#define VE_MODE_DEC_H264			(0x01 << 0)
-#define VE_MODE_DEC_MPEG			(0x00 << 0)
+#define VE_MODE_REC_WR_MODE_2MB			(1 << 20)
+#define VE_MODE_REC_WR_MODE_1MB			(0 << 20)
+#define VE_MODE_DDR_MODE_BW_128			(3 << 16)
+#define VE_MODE_DDR_MODE_BW_256			(2 << 16)
+#define VE_MODE_ENC_ENABLE			BIT(7)
+#define VE_MODE_ENC_ISP_ENABLE			BIT(6)
+#define VE_MODE_DEC_DISABLED			(7 << 0)
+#define VE_MODE_DEC_H265			(4 << 0)
+#define VE_MODE_DEC_H264			(1 << 0)
+#define VE_MODE_DEC_MPEG			(0 << 0)
+
+
+#define VE_RESET_REG				0x4
+#define VE_RESET_ENC_REQ_MASK_EN		BIT(25)
+#define VE_RESET_ENCODER_RESET			BIT(24)
+#define VE_RESET_DEC_VEBK_RESET			BIT(18)
+#define VE_RESET_DEC_REQ_MASK_EN		BIT(17)
+#define VE_RESET_DECODER_RESET			BIT(16)
+#define VE_RESET_SYNC_IDLE			BIT(9)
+#define VE_RESET_CACHE_SYNC_IDLE		BIT(8)
+#define VE_RESET_WDRAM_CLR			BIT(5)
+#define VE_RESET_MEM_SYNC_MASK			BIT(4)
+#define VE_RESET_GLOBAL_RESET			BIT(0)
+
 
 #define VE_BUF_CTRL				0x50
 
@@ -87,8 +109,9 @@
 #define VE_SECONDARY_OUT_FMT_EXT_NV21		(0x05 << 0)
 
 #define VE_VERSION				0xf0
+#define VE_VERSION_VALUE(v)			(((v) & GENMASK(31, 16)) >> 16)
 
-#define VE_VERSION_SHIFT			16
+/* MPEG Decoder Registers */
 
 #define VE_DEC_MPEG_MP12HDR			(VE_ENGINE_DEC_MPEG + 0x00)
 
@@ -254,6 +277,8 @@
 #define VE_DEC_MPEG_CRTMBADDR			(VE_ENGINE_DEC_MPEG + 0xc8)
 #define VE_DEC_MPEG_ROT_LUMA			(VE_ENGINE_DEC_MPEG + 0xcc)
 #define VE_DEC_MPEG_ROT_CHROMA			(VE_ENGINE_DEC_MPEG + 0xd0)
+
+/* H.265 Decoder Registers */
 
 #define VE_DEC_H265_DEC_NAL_HDR			(VE_ENGINE_DEC_H265 + 0x00)
 
@@ -491,6 +516,8 @@
 #define VE_DEC_H265_NEIGHBOR_INFO_ADDR_BASE(a)	((a) >> 8)
 
 #define VE_DEC_H265_ENTRY_POINT_OFFSET_ADDR	(VE_ENGINE_DEC_H265 + 0x64)
+#define VE_DEC_H265_ENTRY_POINT_OFFSET_ADDR_BASE(a)	((a) >> 8)
+
 #define VE_DEC_H265_TILE_START_CTB		(VE_ENGINE_DEC_H265 + 0x68)
 #define VE_DEC_H265_TILE_END_CTB		(VE_ENGINE_DEC_H265 + 0x6c)
 #define VE_DEC_H265_SCALING_LIST_DC_COEF0	(VE_ENGINE_DEC_H265 + 0x78)
@@ -539,6 +566,8 @@
 
 #define VE_DEC_H265_SRAM_DATA_ADDR_BASE(a)	((a) >> 8)
 #define VE_DEC_H265_SRAM_REF_PIC_LIST_LT_REF	BIT(7)
+
+/* H.264 Decoder Registers */
 
 #define VE_H264_SPS			0x200
 #define VE_H264_SPS_MBS_ONLY			BIT(18)
@@ -686,32 +715,5 @@
 #define VE_VP8_LF_DELTA2(v)			SHIFT_AND_MASK_BITS(v, 22, 16)
 #define VE_VP8_LF_DELTA1(v)			SHIFT_AND_MASK_BITS(v, 14, 8)
 #define VE_VP8_LF_DELTA0(v)			SHIFT_AND_MASK_BITS(v, 6, 0)
-
-#define VE_ISP_INPUT_SIZE		0xa00
-#define VE_ISP_INPUT_STRIDE		0xa04
-#define VE_ISP_CTRL			0xa08
-#define VE_ISP_INPUT_LUMA		0xa78
-#define VE_ISP_INPUT_CHROMA		0xa7c
-
-#define VE_AVC_PARAM			0xb04
-#define VE_AVC_QP			0xb08
-#define VE_AVC_MOTION_EST		0xb10
-#define VE_AVC_CTRL			0xb14
-#define VE_AVC_TRIGGER			0xb18
-#define VE_AVC_STATUS			0xb1c
-#define VE_AVC_BASIC_BITS		0xb20
-#define VE_AVC_UNK_BUF			0xb60
-#define VE_AVC_VLE_ADDR			0xb80
-#define VE_AVC_VLE_END			0xb84
-#define VE_AVC_VLE_OFFSET		0xb88
-#define VE_AVC_VLE_MAX			0xb8c
-#define VE_AVC_VLE_LENGTH		0xb90
-#define VE_AVC_REF_LUMA			0xba0
-#define VE_AVC_REF_CHROMA		0xba4
-#define VE_AVC_REC_LUMA			0xbb0
-#define VE_AVC_REC_CHROMA		0xbb4
-#define VE_AVC_REF_SLUMA		0xbb8
-#define VE_AVC_REC_SLUMA		0xbbc
-#define VE_AVC_MB_INFO			0xbc0
 
 #endif

@@ -1,272 +1,189 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Cedrus VPU driver
+ * Cedrus Video Engine Driver
  *
- * Copyright (C) 2016 Florent Revest <florent.revest@free-electrons.com>
- * Copyright (C) 2018 Paul Kocialkowski <paul.kocialkowski@bootlin.com>
- * Copyright (C) 2018 Bootlin
- *
- * Based on the vim2m driver, that is:
- *
- * Copyright (c) 2009-2010 Samsung Electronics Co., Ltd.
- * Pawel Osciak, <pawel@osciak.com>
- * Marek Szyprowski, <m.szyprowski@samsung.com>
+ * Copyright 2016 Florent Revest <florent.revest@free-electrons.com>
+ * Copyright 2018 Paul Kocialkowski <paul.kocialkowski@bootlin.com>
+ * Copyright 2018-2023 Bootlin
+ * Author: Paul Kocialkowski <paul.kocialkowski@bootlin.com>
  */
 
 #ifndef _CEDRUS_H_
 #define _CEDRUS_H_
 
+#include <linux/iopoll.h>
+#include <linux/videodev2.h>
+#include <linux/workqueue.h>
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-mem2mem.h>
 #include <media/videobuf2-v4l2.h>
 #include <media/videobuf2-dma-contig.h>
 
-#include <linux/iopoll.h>
-#include <linux/platform_device.h>
-#include <linux/workqueue.h>
+#include "cedrus_context.h"
+#include "cedrus_proc.h"
 
-#define CEDRUS_NAME			"cedrus"
+#define CEDRUS_NAME		"cedrus"
+#define CEDRUS_DESCRIPTION	"Allwinner Cedrus Video Engine Driver"
 
-#define CEDRUS_CAPABILITY_UNTILED	BIT(0)
-#define CEDRUS_CAPABILITY_H265_DEC	BIT(1)
-#define CEDRUS_CAPABILITY_H264_DEC	BIT(2)
-#define CEDRUS_CAPABILITY_MPEG2_DEC	BIT(3)
-#define CEDRUS_CAPABILITY_VP8_DEC	BIT(4)
-#define CEDRUS_CAPABILITY_H265_10_DEC	BIT(5)
+#define CEDRUS_WIDTH_MIN	16U
+#define CEDRUS_WIDTH_MAX	4096U
+#define CEDRUS_HEIGHT_MIN	16U
+#define CEDRUS_HEIGHT_MAX	2304U
+
+enum cedrus_codec {
+	CEDRUS_CODEC_MPEG2,
+	CEDRUS_CODEC_H264,
+	CEDRUS_CODEC_H265,
+	CEDRUS_CODEC_VP8,
+};
 
 enum cedrus_irq_status {
 	CEDRUS_IRQ_NONE,
 	CEDRUS_IRQ_ERROR,
-	CEDRUS_IRQ_OK,
+	CEDRUS_IRQ_SUCCESS,
 };
 
-enum cedrus_h264_pic_type {
-	CEDRUS_H264_PIC_TYPE_FRAME	= 0,
-	CEDRUS_H264_PIC_TYPE_FIELD,
-	CEDRUS_H264_PIC_TYPE_MBAFF,
+enum cedrus_capability {
+	CEDRUS_CAPABILITY_UNTILED	= BIT(0),
+	CEDRUS_CAPABILITY_MPEG2_DEC	= BIT(1),
+	CEDRUS_CAPABILITY_H264_DEC	= BIT(2),
+	CEDRUS_CAPABILITY_H265_DEC	= BIT(3),
+	CEDRUS_CAPABILITY_H265_10_DEC	= BIT(4),
+	CEDRUS_CAPABILITY_VP8_DEC	= BIT(5),
 };
 
-struct cedrus_control {
-	struct v4l2_ctrl_config cfg;
-	unsigned int		capabilities;
-};
-
-struct cedrus_h264_run {
-	const struct v4l2_ctrl_h264_decode_params	*decode_params;
-	const struct v4l2_ctrl_h264_pps			*pps;
-	const struct v4l2_ctrl_h264_scaling_matrix	*scaling_matrix;
-	const struct v4l2_ctrl_h264_slice_params	*slice_params;
-	const struct v4l2_ctrl_h264_sps			*sps;
-	const struct v4l2_ctrl_h264_pred_weights	*pred_weights;
-};
-
-struct cedrus_mpeg2_run {
-	const struct v4l2_ctrl_mpeg2_sequence		*sequence;
-	const struct v4l2_ctrl_mpeg2_picture		*picture;
-	const struct v4l2_ctrl_mpeg2_quantisation	*quantisation;
-};
-
-struct cedrus_h265_run {
-	const struct v4l2_ctrl_hevc_sps			*sps;
-	const struct v4l2_ctrl_hevc_pps			*pps;
-	const struct v4l2_ctrl_hevc_slice_params	*slice_params;
-	const struct v4l2_ctrl_hevc_decode_params	*decode_params;
-	const struct v4l2_ctrl_hevc_scaling_matrix	*scaling_matrix;
-	const u32					*entry_points;
-	u32						entry_points_count;
-};
-
-struct cedrus_vp8_run {
-	const struct v4l2_ctrl_vp8_frame		*frame_params;
-};
-
-struct cedrus_run {
-	struct vb2_v4l2_buffer	*src;
-	struct vb2_v4l2_buffer	*dst;
-
-	union {
-		struct cedrus_h264_run	h264;
-		struct cedrus_mpeg2_run	mpeg2;
-		struct cedrus_h265_run	h265;
-		struct cedrus_vp8_run	vp8;
-	};
-};
-
-struct cedrus_buffer {
-	struct v4l2_m2m_buffer          m2m_buf;
-
-	union {
-		struct {
-			unsigned int			position;
-			enum cedrus_h264_pic_type	pic_type;
-			void				*mv_col_buf;
-			dma_addr_t			mv_col_buf_dma;
-			ssize_t				mv_col_buf_size;
-		} h264;
-		struct {
-			void		*mv_col_buf;
-			dma_addr_t	mv_col_buf_dma;
-			ssize_t		mv_col_buf_size;
-		} h265;
-	} codec;
-};
-
-struct cedrus_ctx {
-	struct v4l2_fh			fh;
-	struct cedrus_dev		*dev;
-
-	struct v4l2_pix_format		src_fmt;
-	struct v4l2_pix_format		dst_fmt;
-	struct cedrus_dec_ops		*current_codec;
-	unsigned int			bit_depth;
-
-	struct v4l2_ctrl_handler	hdl;
-	struct v4l2_ctrl		**ctrls;
-
-	union {
-		struct {
-			void		*pic_info_buf;
-			dma_addr_t	pic_info_buf_dma;
-			ssize_t		pic_info_buf_size;
-			void		*neighbor_info_buf;
-			dma_addr_t	neighbor_info_buf_dma;
-			void		*deblk_buf;
-			dma_addr_t	deblk_buf_dma;
-			ssize_t		deblk_buf_size;
-			void		*intra_pred_buf;
-			dma_addr_t	intra_pred_buf_dma;
-			ssize_t		intra_pred_buf_size;
-		} h264;
-		struct {
-			void		*neighbor_info_buf;
-			dma_addr_t	neighbor_info_buf_addr;
-			void		*entry_points_buf;
-			dma_addr_t	entry_points_buf_addr;
-		} h265;
-		struct {
-			unsigned int	last_frame_p_type;
-			unsigned int	last_filter_type;
-			unsigned int	last_sharpness_level;
-
-			u8		*entropy_probs_buf;
-			dma_addr_t	entropy_probs_buf_dma;
-		} vp8;
-	} codec;
-};
-
-struct cedrus_dec_ops {
-	void (*irq_clear)(struct cedrus_ctx *ctx);
-	void (*irq_disable)(struct cedrus_ctx *ctx);
-	enum cedrus_irq_status (*irq_status)(struct cedrus_ctx *ctx);
-	int (*setup)(struct cedrus_ctx *ctx, struct cedrus_run *run);
-	int (*start)(struct cedrus_ctx *ctx);
-	void (*stop)(struct cedrus_ctx *ctx);
-	void (*trigger)(struct cedrus_ctx *ctx);
-	unsigned int (*extra_cap_size)(struct cedrus_ctx *ctx,
-				       struct v4l2_pix_format *pix_fmt);
-};
+struct cedrus_context;
 
 struct cedrus_variant {
 	unsigned int	capabilities;
-	unsigned int	mod_rate;
+	unsigned int	clock_mod_rate;
 };
 
-struct cedrus_dev {
+struct cedrus_format {
+	unsigned int	pixelformat;
+	unsigned int	capabilities;
+	int		type;
+};
+
+struct cedrus_v4l2 {
 	struct v4l2_device	v4l2_dev;
-	struct video_device	vfd;
-	struct media_device	mdev;
-	struct device		*dev;
+	struct media_device	media_dev;
 	struct v4l2_m2m_dev	*m2m_dev;
+};
 
-	/* Device file mutex */
-	struct mutex		dev_mutex;
+struct cedrus_device {
+	struct device		*dev;
 
-	void __iomem		*base;
+	struct cedrus_v4l2	v4l2;
+	struct cedrus_proc	dec;
 
-	struct clk		*mod_clk;
-	struct clk		*ahb_clk;
-	struct clk		*ram_clk;
-
-	struct reset_control	*rstc;
+	void __iomem		*io_base;
+	struct clk		*clock_ahb;
+	struct clk		*clock_mod;
+	struct clk		*clock_ram;
+	struct reset_control	*reset;
 
 	unsigned int		capabilities;
 
 	struct delayed_work	watchdog_work;
 };
 
-extern struct cedrus_dec_ops cedrus_dec_ops_mpeg2;
-extern struct cedrus_dec_ops cedrus_dec_ops_h264;
-extern struct cedrus_dec_ops cedrus_dec_ops_h265;
-extern struct cedrus_dec_ops cedrus_dec_ops_vp8;
+/* Capabilities */
 
-static inline void cedrus_write(struct cedrus_dev *dev, u32 reg, u32 val)
+static inline bool cedrus_capabilities_check(struct cedrus_device *dev,
+					     unsigned int capabilities)
 {
-	writel(val, dev->base + reg);
+	return (dev->capabilities & capabilities) == capabilities;
 }
 
-static inline u32 cedrus_read(struct cedrus_dev *dev, u32 reg)
+/* I/O */
+
+static inline void cedrus_write(struct cedrus_device *dev, u32 reg, u32 val)
 {
-	return readl(dev->base + reg);
+	writel(val, dev->io_base + reg);
 }
 
-static inline u32 cedrus_wait_for(struct cedrus_dev *dev, u32 reg, u32 flag)
+static inline u32 cedrus_read(struct cedrus_device *dev, u32 reg)
+{
+	return readl(dev->io_base + reg);
+}
+
+static inline int cedrus_poll(struct cedrus_device *dev, u32 reg, u32 bits)
 {
 	u32 value;
 
-	return readl_poll_timeout_atomic(dev->base + reg, value,
-			(value & flag) == 0, 10, 1000);
+	return readl_poll_timeout_atomic(dev->io_base + reg, value,
+					 (value & bits) == bits, 10, 1000);
 }
 
-static inline dma_addr_t cedrus_buf_addr(struct vb2_buffer *buf,
-					 struct v4l2_pix_format *pix_fmt,
-					 unsigned int plane)
+static inline int cedrus_poll_cleared(struct cedrus_device *dev, u32 reg,
+				      u32 bits)
 {
-	dma_addr_t addr = vb2_dma_contig_plane_dma_addr(buf, 0);
+	u32 value;
 
-	return addr + (pix_fmt ? (dma_addr_t)pix_fmt->bytesperline *
-	       pix_fmt->height * plane : 0);
+	return readl_poll_timeout_atomic(dev->io_base + reg, value,
+					 (value & bits) == 0, 10, 1000);
 }
 
-static inline dma_addr_t cedrus_dst_buf_addr(struct cedrus_ctx *ctx,
-					     struct vb2_buffer *buf,
-					     unsigned int plane)
+/* Buffer */
+
+static inline u64 cedrus_buffer_timestamp(struct cedrus_buffer *buffer)
 {
-	return buf ? cedrus_buf_addr(buf, &ctx->dst_fmt, plane) : 0;
+	return buffer->m2m_buffer.vb.vb2_buf.timestamp;
 }
 
-static inline void cedrus_write_ref_buf_addr(struct cedrus_ctx *ctx,
-					     struct vb2_queue *q,
-					     u64 timestamp,
-					     u32 luma_reg,
-					     u32 chroma_reg)
+static inline void cedrus_buffer_picture_dma(struct cedrus_context *ctx,
+					     struct cedrus_buffer *cedrus_buffer,
+					     dma_addr_t *luma_addr,
+					     dma_addr_t *chroma_addr)
 {
-	struct cedrus_dev *dev = ctx->dev;
-	struct vb2_buffer *buf = vb2_find_buffer(q, timestamp);
+	struct v4l2_pix_format *pix_format = &ctx->v4l2.format_picture.fmt.pix;
+	struct vb2_buffer *vb2_buffer = &cedrus_buffer->m2m_buffer.vb.vb2_buf;
+	dma_addr_t addr;
 
-	cedrus_write(dev, luma_reg, cedrus_dst_buf_addr(ctx, buf, 0));
-	cedrus_write(dev, chroma_reg, cedrus_dst_buf_addr(ctx, buf, 1));
+	addr = vb2_dma_contig_plane_dma_addr(vb2_buffer, 0);
+	*luma_addr = addr;
+
+	addr += pix_format->bytesperline * pix_format->height;
+	*chroma_addr = addr;
+}
+
+static inline void cedrus_buffer_coded_dma(struct cedrus_context *ctx,
+					   struct cedrus_buffer *cedrus_buffer,
+					   dma_addr_t *addr, unsigned int *size)
+{
+	struct vb2_buffer *vb2_buffer = &cedrus_buffer->m2m_buffer.vb.vb2_buf;
+
+	*addr = vb2_dma_contig_plane_dma_addr(vb2_buffer, 0);
+	*size = vb2_get_plane_payload(vb2_buffer, 0);
 }
 
 static inline struct cedrus_buffer *
-vb2_v4l2_to_cedrus_buffer(const struct vb2_v4l2_buffer *p)
+cedrus_buffer_picture_find(struct cedrus_context *ctx, u64 timestamp)
 {
-	return container_of(p, struct cedrus_buffer, m2m_buf.vb);
+	struct vb2_buffer *vb2_buffer;
+	struct vb2_v4l2_buffer *v4l2_buffer;
+
+	if (WARN_ON(!ctx->job.queue_picture))
+		return NULL;
+
+	vb2_buffer = vb2_find_buffer(ctx->job.queue_picture, timestamp);
+	if (!vb2_buffer)
+		return NULL;
+
+	v4l2_buffer = to_vb2_v4l2_buffer(vb2_buffer);
+
+	return container_of(v4l2_buffer, struct cedrus_buffer, m2m_buffer.vb);
 }
 
 static inline struct cedrus_buffer *
-vb2_to_cedrus_buffer(const struct vb2_buffer *p)
+cedrus_buffer_from_vb2(const struct vb2_buffer *vb2_buffer)
 {
-	return vb2_v4l2_to_cedrus_buffer(to_vb2_v4l2_buffer(p));
-}
+	const struct vb2_v4l2_buffer *v4l2_buffer =
+		to_vb2_v4l2_buffer(vb2_buffer);
 
-static inline bool
-cedrus_is_capable(struct cedrus_ctx *ctx, unsigned int capabilities)
-{
-	return (ctx->dev->capabilities & capabilities) == capabilities;
+	return container_of(v4l2_buffer, struct cedrus_buffer, m2m_buffer.vb);
 }
-
-void *cedrus_find_control_data(struct cedrus_ctx *ctx, u32 id);
-u32 cedrus_get_num_of_controls(struct cedrus_ctx *ctx, u32 id);
 
 #endif
