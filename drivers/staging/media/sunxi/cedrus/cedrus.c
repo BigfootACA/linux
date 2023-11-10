@@ -509,7 +509,8 @@ static const struct cedrus_variant cedrus_variant_sun8i_h3 = {
 
 static const struct cedrus_variant cedrus_variant_sun8i_v3s = {
 	.capabilities	= CEDRUS_CAPABILITY_UNTILED |
-			  CEDRUS_CAPABILITY_H264_DEC,
+			  CEDRUS_CAPABILITY_H264_DEC |
+			  CEDRUS_CAPABILITY_H264_ENC,
 	.clock_mod_rate	= 402000000,
 };
 
