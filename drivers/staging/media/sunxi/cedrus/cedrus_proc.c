@@ -335,6 +335,11 @@ static int cedrus_proc_enum_fmt(struct file *file, void *private,
 
 			if (format_type == CEDRUS_FORMAT_TYPE_CODED)
 				fmtdesc->flags |= V4L2_FMT_FLAG_COMPRESSED;
+
+			if (proc->role == CEDRUS_ROLE_ENCODER &&
+			    format_type == CEDRUS_FORMAT_TYPE_CODED)
+				fmtdesc->flags |=
+					V4L2_FMT_FLAG_ENC_CAP_FRAME_INTERVAL;
 			return 0;
 		} else if (fmtdesc->index < index) {
 			break;
@@ -455,6 +460,176 @@ static int cedrus_proc_enum_framesizes(struct file *file, void *private,
 	return -EINVAL;
 }
 
+static int cedrus_proc_enum_frameintervals(struct file *file, void *private,
+					   struct v4l2_frmivalenum *frmivalenum)
+{
+	struct v4l2_frmsizeenum frmsizeenum = { 0 };
+	unsigned int width = frmivalenum->width;
+	unsigned int height = frmivalenum->height;
+	int ret;
+
+	if (frmivalenum->index > 0)
+		return -EINVAL;
+
+	/* First check that the provided format and dimensions are valid. */
+	frmsizeenum.pixel_format = frmivalenum->pixel_format;
+	ret = cedrus_proc_enum_framesizes(file, private, &frmsizeenum);
+	if (ret)
+		return ret;
+
+	if (width < frmsizeenum.stepwise.min_width ||
+	    width > frmsizeenum.stepwise.max_width ||
+	    height < frmsizeenum.stepwise.min_height ||
+	    height > frmsizeenum.stepwise.max_height)
+		return -EINVAL;
+
+	/* Any possible frame interval is acceptable. */
+	frmivalenum->type = V4L2_FRMIVAL_TYPE_CONTINUOUS;
+	frmivalenum->stepwise.min.numerator = 1;
+	frmivalenum->stepwise.min.denominator = USHRT_MAX;
+	frmivalenum->stepwise.max.numerator = USHRT_MAX;
+	frmivalenum->stepwise.max.denominator = 1;
+	frmivalenum->stepwise.step.numerator = 1;
+	frmivalenum->stepwise.step.denominator = 1;
+
+	return 0;
+}
+
+static int cedrus_proc_g_selection(struct file *file, void *private,
+				   struct v4l2_selection *selection)
+{
+	struct cedrus_context *ctx =
+		container_of(file->private_data, struct cedrus_context,
+			     v4l2.fh);
+	unsigned int format_type =
+		cedrus_proc_format_type(ctx->proc, selection->type);
+	struct v4l2_pix_format *pix_format =
+		&ctx->v4l2.format_picture.fmt.pix;
+
+	if (format_type != CEDRUS_FORMAT_TYPE_PICTURE)
+		return -EINVAL;
+
+	switch (selection->target) {
+	case V4L2_SEL_TGT_CROP_DEFAULT:
+	case V4L2_SEL_TGT_CROP_BOUNDS:
+		selection->r.top = 0;
+		selection->r.left = 0;
+		selection->r.width = pix_format->width;
+		selection->r.height = pix_format->height;
+		return 0;
+	case V4L2_SEL_TGT_CROP:
+		selection->r = ctx->v4l2.selection_picture;
+		return 0;
+	}
+
+	return -EINVAL;
+}
+
+static int cedrus_proc_s_selection(struct file *file, void *private,
+				   struct v4l2_selection *selection)
+{
+	struct cedrus_context *ctx =
+		container_of(file->private_data, struct cedrus_context,
+			     v4l2.fh);
+	unsigned int format_type =
+		cedrus_proc_format_type(ctx->proc, selection->type);
+	struct v4l2_pix_format *pix_format =
+		&ctx->v4l2.format_picture.fmt.pix;
+	unsigned int width_max, height_max;
+
+	if (format_type != CEDRUS_FORMAT_TYPE_PICTURE)
+		return -EINVAL;
+
+	switch (selection->target) {
+	case V4L2_SEL_TGT_CROP:
+		/* Even dimensions are expected by most codecs. */
+		selection->r.left = round_up(selection->r.left, 2);
+		selection->r.top = round_up(selection->r.top, 2);
+
+		width_max = pix_format->width - selection->r.left;
+		height_max = pix_format->height - selection->r.top;
+
+		selection->r.width = clamp(selection->r.width, 2U, width_max);
+		selection->r.height = clamp(selection->r.height, 2U,
+					    height_max);
+
+		ctx->v4l2.selection_picture = selection->r;
+		return 0;
+	}
+
+	return -EINVAL;
+}
+
+static int cedrus_proc_g_parm(struct file *file, void *private,
+			      struct v4l2_streamparm *streamparm)
+{
+	struct cedrus_context *ctx =
+		container_of(file->private_data, struct cedrus_context,
+			     v4l2.fh);
+	unsigned int format_type =
+		cedrus_proc_format_type(ctx->proc, streamparm->type);
+	struct v4l2_fract *timeperframe;
+
+	if (format_type == CEDRUS_FORMAT_TYPE_CODED)
+		timeperframe = &ctx->v4l2.timeperframe_coded;
+	else
+		timeperframe = &ctx->v4l2.timeperframe_picture;
+
+	if (V4L2_TYPE_IS_OUTPUT(streamparm->type)) {
+		streamparm->parm.output.capability = V4L2_CAP_TIMEPERFRAME;
+		streamparm->parm.output.timeperframe = *timeperframe;
+	} else {
+		streamparm->parm.capture.capability = V4L2_CAP_TIMEPERFRAME;
+		streamparm->parm.capture.timeperframe = *timeperframe;
+	}
+
+	return 0;
+}
+
+static int cedrus_proc_s_parm(struct file *file, void *private,
+			      struct v4l2_streamparm *streamparm)
+{
+	struct cedrus_context *ctx =
+		container_of(file->private_data, struct cedrus_context,
+			     v4l2.fh);
+	unsigned int format_type =
+		cedrus_proc_format_type(ctx->proc, streamparm->type);
+	struct v4l2_fract *timeperframe_propagate;
+	struct v4l2_fract *timeperframe_format;
+	struct v4l2_fract *timeperframe;
+
+	if (V4L2_TYPE_IS_OUTPUT(streamparm->type)) {
+		streamparm->parm.output.capability = V4L2_CAP_TIMEPERFRAME;
+		timeperframe = &streamparm->parm.output.timeperframe;
+	} else {
+		streamparm->parm.capture.capability = V4L2_CAP_TIMEPERFRAME;
+		timeperframe = &streamparm->parm.capture.timeperframe;
+	}
+
+	/* Find out where to assign the provided values. */
+	if (format_type == CEDRUS_FORMAT_TYPE_CODED) {
+		timeperframe_format = &ctx->v4l2.timeperframe_coded;
+		timeperframe_propagate = NULL;
+	} else {
+		timeperframe_format = &ctx->v4l2.timeperframe_picture;
+		timeperframe_propagate = &ctx->v4l2.timeperframe_coded;
+	}
+
+	/* Return the current timeperframe in case of invalid values. */
+	if (!timeperframe->numerator || !timeperframe->denominator) {
+		*timeperframe = *timeperframe_format;
+		return 0;
+	}
+
+	*timeperframe_format = *timeperframe;
+
+	/* Propagate picture timeperframe to coded. */
+	if (timeperframe_propagate)
+		*timeperframe_propagate = *timeperframe;
+
+	return 0;
+}
+
 static const struct v4l2_ioctl_ops cedrus_proc_ioctl_ops = {
 	.vidioc_querycap		= cedrus_proc_querycap,
 
@@ -469,6 +644,13 @@ static const struct v4l2_ioctl_ops cedrus_proc_ioctl_ops = {
 	.vidioc_try_fmt_vid_cap		= cedrus_proc_try_fmt,
 
 	.vidioc_enum_framesizes		= cedrus_proc_enum_framesizes,
+	.vidioc_enum_frameintervals	= cedrus_proc_enum_frameintervals,
+
+	.vidioc_g_selection		= cedrus_proc_g_selection,
+	.vidioc_s_selection		= cedrus_proc_s_selection,
+
+	.vidioc_g_parm			= cedrus_proc_g_parm,
+	.vidioc_s_parm			= cedrus_proc_s_parm,
 
 	.vidioc_create_bufs		= v4l2_m2m_ioctl_create_bufs,
 	.vidioc_prepare_buf		= v4l2_m2m_ioctl_prepare_buf,
@@ -597,7 +779,10 @@ static int cedrus_proc_v4l2_setup(struct cedrus_proc *proc)
 
 	/* Video Device */
 
-	suffix = "dec";
+	if (proc->role == CEDRUS_ROLE_DECODER)
+		suffix = "dec";
+	else
+		suffix = "enc";
 
 	snprintf(video_dev->name, sizeof(video_dev->name), CEDRUS_NAME "-%s",
 		 suffix);
@@ -610,6 +795,17 @@ static int cedrus_proc_v4l2_setup(struct cedrus_proc *proc)
 	video_dev->lock = &v4l2->lock;
 
 	video_set_drvdata(video_dev, proc);
+
+	if (proc->role == CEDRUS_ROLE_DECODER) {
+		v4l2_disable_ioctl(video_dev, VIDIOC_ENUM_FRAMEINTERVALS);
+		v4l2_disable_ioctl(video_dev, VIDIOC_G_SELECTION);
+		v4l2_disable_ioctl(video_dev, VIDIOC_S_SELECTION);
+		v4l2_disable_ioctl(video_dev, VIDIOC_G_PARM);
+		v4l2_disable_ioctl(video_dev, VIDIOC_S_PARM);
+	} else {
+		v4l2_disable_ioctl(video_dev, VIDIOC_DECODER_CMD);
+		v4l2_disable_ioctl(video_dev, VIDIOC_TRY_DECODER_CMD);
+	}
 
 	ret = video_register_device(video_dev, VFL_TYPE_VIDEO, -1);
 	if (ret) {
@@ -632,7 +828,10 @@ static int cedrus_proc_v4l2_setup(struct cedrus_proc *proc)
 	v4l2->proc_pads[0].flags = MEDIA_PAD_FL_SINK;
 	v4l2->proc_pads[1].flags = MEDIA_PAD_FL_SOURCE;
 
-	function = MEDIA_ENT_F_PROC_VIDEO_DECODER;
+	if (proc->role == CEDRUS_ROLE_DECODER)
+		function = MEDIA_ENT_F_PROC_VIDEO_DECODER;
+	else
+		function = MEDIA_ENT_F_PROC_VIDEO_ENCODER;
 
 	ret = cedrus_proc_v4l2_setup_entity(proc, &v4l2->proc, "proc",
 					    v4l2->proc_pads, 2, function);

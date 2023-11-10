@@ -77,6 +77,7 @@ struct cedrus_device {
 
 	struct cedrus_v4l2	v4l2;
 	struct cedrus_proc	dec;
+	struct cedrus_proc	enc;
 
 	void __iomem		*io_base;
 	struct clk		*clock_ahb;
@@ -156,7 +157,15 @@ static inline void cedrus_buffer_coded_dma(struct cedrus_context *ctx,
 	struct vb2_buffer *vb2_buffer = &cedrus_buffer->m2m_buffer.vb.vb2_buf;
 
 	*addr = vb2_dma_contig_plane_dma_addr(vb2_buffer, 0);
-	*size = vb2_get_plane_payload(vb2_buffer, 0);
+
+	/*
+	 * Use the payload size when decoding (provided by user) and the full
+	 * buffer size when encoding.
+	 */
+	if (ctx->proc->role == CEDRUS_ROLE_DECODER)
+		*size = vb2_get_plane_payload(vb2_buffer, 0);
+	else
+		*size = vb2_plane_size(vb2_buffer, 0);
 }
 
 static inline struct cedrus_buffer *

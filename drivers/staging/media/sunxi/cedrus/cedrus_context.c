@@ -252,10 +252,17 @@ int cedrus_context_job_run(struct cedrus_context *ctx)
 	buffer_src = v4l2_m2m_next_src_buf(m2m_ctx);
 	buffer_dst = v4l2_m2m_next_dst_buf(m2m_ctx);
 
-	job->queue_coded = queue_src;
-	job->queue_picture = queue_dst;
-	job->buffer_coded = buffer_src;
-	job->buffer_picture = buffer_dst;
+	if (proc->role == CEDRUS_ROLE_DECODER) {
+		job->queue_coded = queue_src;
+		job->queue_picture = queue_dst;
+		job->buffer_coded = buffer_src;
+		job->buffer_picture = buffer_dst;
+	} else {
+		job->queue_coded = queue_dst;
+		job->queue_picture = queue_src;
+		job->buffer_coded = buffer_dst;
+		job->buffer_picture = buffer_src;
+	}
 
 	/* Setup request controls. */
 
@@ -637,10 +644,17 @@ static int cedrus_context_queue_init(void *private, struct vb2_queue *src_queue,
 	src_queue->mem_ops = &vb2_dma_contig_memops;
 	src_queue->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_COPY;
 	src_queue->supports_requests = true;
-	src_queue->requires_requests = true;
 	src_queue->lock = &proc->v4l2.lock;
 	src_queue->dev = proc->dev->dev;
 	src_queue->drv_priv = ctx;
+
+	/*
+	 * FIXME: The current encoder implementation doesn't particularly rely
+	 * on requests, but it might become necessary for some codecs so this
+	 * should be set dynamically later on.
+	 */
+	if (proc->role == CEDRUS_ROLE_DECODER)
+		src_queue->requires_requests = true;
 
 	ret = vb2_queue_init(src_queue);
 	if (ret)

@@ -21,7 +21,8 @@ struct cedrus_proc;
 struct cedrus_context;
 
 enum cedrus_role {
-	CEDRUS_ROLE_DECODER
+	CEDRUS_ROLE_DECODER,
+	CEDRUS_ROLE_ENCODER
 };
 
 enum cedrus_format_type {
@@ -92,10 +93,17 @@ struct cedrus_proc {
 static inline unsigned int cedrus_proc_format_type(struct cedrus_proc *proc,
 						   unsigned int buffer_type)
 {
-	if (V4L2_TYPE_IS_OUTPUT(buffer_type))
-		return CEDRUS_FORMAT_TYPE_CODED;
-	else
-		return CEDRUS_FORMAT_TYPE_PICTURE;
+	if (proc->role == CEDRUS_ROLE_DECODER) {
+		if (V4L2_TYPE_IS_OUTPUT(buffer_type))
+			return CEDRUS_FORMAT_TYPE_CODED;
+		else
+			return CEDRUS_FORMAT_TYPE_PICTURE;
+	} else {
+		if (V4L2_TYPE_IS_OUTPUT(buffer_type))
+			return CEDRUS_FORMAT_TYPE_PICTURE;
+		else
+			return CEDRUS_FORMAT_TYPE_CODED;
+	}
 }
 
 /* Buffer */
@@ -103,10 +111,17 @@ static inline unsigned int cedrus_proc_format_type(struct cedrus_proc *proc,
 static inline int cedrus_proc_buffer_type(struct cedrus_proc *proc,
 					  unsigned int format_type)
 {
-	if (format_type == CEDRUS_FORMAT_TYPE_CODED)
-		return V4L2_BUF_TYPE_VIDEO_OUTPUT;
-	else
-		return V4L2_BUF_TYPE_VIDEO_CAPTURE;
+	if (proc->role == CEDRUS_ROLE_DECODER) {
+		if (format_type == CEDRUS_FORMAT_TYPE_CODED)
+			return V4L2_BUF_TYPE_VIDEO_OUTPUT;
+		else
+			return V4L2_BUF_TYPE_VIDEO_CAPTURE;
+	} else {
+		if (format_type == CEDRUS_FORMAT_TYPE_CODED)
+			return V4L2_BUF_TYPE_VIDEO_CAPTURE;
+		else
+			return V4L2_BUF_TYPE_VIDEO_OUTPUT;
+	}
 }
 
 /* Context */

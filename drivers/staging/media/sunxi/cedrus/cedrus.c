@@ -24,6 +24,7 @@
 #include "cedrus.h"
 #include "cedrus_context.h"
 #include "cedrus_dec.h"
+#include "cedrus_enc.h"
 #include "cedrus_engine.h"
 #include "cedrus_proc.h"
 
@@ -180,6 +181,16 @@ static void cedrus_irq_spurious(struct cedrus_device *dev)
 	/* Disable/clear IRQ on the decoder. */
 
 	proc = &dev->dec;
+	spin_lock(&proc->ctx_active_lock);
+
+	if (proc->ctx_active)
+		cedrus_irq_disable_clear(proc->ctx_active);
+
+	spin_unlock(&proc->ctx_active_lock);
+
+	/* Disable/clear IRQ on the encoder. */
+
+	proc = &dev->enc;
 	spin_lock(&proc->ctx_active_lock);
 
 	if (proc->ctx_active)
@@ -428,6 +439,10 @@ static int cedrus_probe(struct platform_device *platform_dev)
 	if (ret)
 		goto error_v4l2;
 
+	ret = cedrus_enc_setup(cedrus_dev);
+	if (ret)
+		goto error_dec;
+
 	return 0;
 
 error_dec:
@@ -448,6 +463,7 @@ static void cedrus_remove(struct platform_device *platform_dev)
 
 	cancel_delayed_work_sync(&cedrus_dev->watchdog_work);
 
+	cedrus_enc_cleanup(cedrus_dev);
 	cedrus_dec_cleanup(cedrus_dev);
 	cedrus_v4l2_cleanup(cedrus_dev);
 	cedrus_resources_cleanup(cedrus_dev);
