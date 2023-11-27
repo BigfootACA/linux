@@ -1,0 +1,3 @@
+config VIDEO_V4L2LOOPBACK
+	tristate "V4L2 Loopback"
+	depends on VIDEO_DEV

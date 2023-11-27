@@ -200,6 +200,7 @@ menu "Video4Linux options"
 	visible if VIDEO_DEV
 
 source "drivers/media/v4l2-core/Kconfig"
+source "drivers/media/v4l2loopback/Kconfig"
 endmenu
 
 menu "Media controller options"
