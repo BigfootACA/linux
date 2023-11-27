@@ -303,6 +303,14 @@
 			#size-cells = <0>;
 		};
 
+		sid: eeprom@1c14000 {
+			compatible = "allwinner,sun8i-v3s-sid",
+				     "allwinner,sun8i-h3-sid";
+			reg = <0x1c14000 0x400>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+		};
+
 		crypto@1c15000 {
 			compatible = "allwinner,sun8i-v3s-crypto",
 				     "allwinner,sun8i-a33-crypto";
