@@ -1,0 +1,487 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR X11)
+/*
+ * Copyright 2023 BigfootACA <bigfoot@classfun.cn>
+ */
+
+/dts-v1/;
+
+#include "sun8i-v3.dtsi"
+
+#include <dt-bindings/pwm/pwm.h>
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/input/input.h>
+
+/ {
+	model = "ANT-C V3 IP KVM";
+	compatible = "ant-c,v3-ipkvm", "allwinner,sun8i-v3";
+	chassis-type = "embedded";
+
+	aliases {
+		serial0 = &uart1;
+		serial1 = &uart2;
+		ethernet0 = &emac;
+		i2c0 = &i2c0;
+		i2c1 = &i2c1;
+		spi0 = &spi0;
+		rtc0 = &rtc;
+		mmc0 = &mmc0;
+		mmc1 = &mmc1;
+	};
+
+	chosen {
+		stdout-path = "serial0:115200n8";
+		bootargs = "earlycon=uart8250,mmio32,0x1c28400 console=ttyS0,115200n8";
+	};
+
+	leds: leds {
+		compatible = "gpio-leds";
+
+		/* Panel Start LED (START_LED) */
+		led_panel_start: led-panel-start {
+			label = "panel:start";
+			gpios = <&pio 4 5 GPIO_ACTIVE_HIGH>; /* PE5 */
+			default-state = "on";
+		};
+
+		/* Panel WiFi LED (WIFI_LED) */
+		led_panel_wifi: led-panel-wifi {
+			label = "panel:wifi";
+			gpios = <&pio 4 20 GPIO_ACTIVE_HIGH>; /* PE20 */
+			default-state = "off";
+		};
+
+		/* Panel Recovery LED (REC_LED) */
+		led_panel_recovery: led-panel-recovery {
+			label = "panel:recovery";
+			gpios = <&pio 6 12 GPIO_ACTIVE_HIGH>; /* PG12 */
+			default-state = "off";
+			panic-indicator;
+		};
+
+		/* 5V Flashlight for Camera */
+		flashlight: flashlight {
+			/* TODO: untested */
+			label = "flashlight";
+			gpios = <&pio 1 3 GPIO_ACTIVE_HIGH>; /* PB3 */
+			default-state = "off";
+		};
+	};
+
+	/* TODO: untested */
+	relay: relay {
+		compatible = "gpio-leds";
+
+		// Relay SWA Power
+		relay_swa_power: relay-swa-power {
+			label = "relay:power";
+			gpios = <&pio 4 13 GPIO_ACTIVE_HIGH>; /* PE13 */
+			default-state = "off";
+		};
+
+		// Relay SWB Reset
+		relay_swa_reset: relay-swa-reset {
+			label = "relay:reset";
+			gpios = <&pio 4 14 GPIO_ACTIVE_HIGH>; /* PE14 */
+			default-state = "off";
+		};
+
+		// Relay SWC Switch (mux with SDC_SEL0?)
+		relay_swa_switch: relay-swa-switch {
+			label = "relay:switch";
+			gpios = <&pio 6 8 GPIO_ACTIVE_HIGH>; /* PG8 */
+			default-state = "off";
+		};
+	};
+
+	/* TODO: untested */
+	optoisolators: optoisolators {
+		compatible = "gpio-keys-polled";
+		label = "optoisolators";
+		poll-interval = <200>;
+
+		// Optoisolator Power LED (POW_LED)
+		optoisolator_pow: optoisolator-pow {
+			label = "Power LED";
+			gpios = <&pio 4 4 GPIO_ACTIVE_LOW>; /* PE4 */
+			linux,code = <KEY_MACRO1>;
+		};
+
+		// Optoisolator HDD LED (HDD_LED)
+		optoisolator_hdd: optoisolator-hdd {
+			label = "HDD LED";
+			gpios = <&pio 1 5 GPIO_ACTIVE_LOW>; /* PB5 */
+			linux,code = <KEY_MACRO2>;
+		};
+	};
+
+	/* 5V Backlight for LCD */
+	backlight: backlight {
+		/* TODO: untested */
+		compatible = "pwm-backlight";
+		pwms = <&pwm 0 50000 PWM_POLARITY_INVERTED>;
+		brightness-levels = <0 10 20 30 40 50 60 70 80 90 100>;
+		default-brightness-level = <8>;
+		enable-gpios = <&pio 1 13 GPIO_ACTIVE_LOW>; /* PB13 */
+		power-supply = <&reg_vcc_5v>;
+	};
+
+	/* For pin controller */
+	reg_vcc_3v3: vcc-3v3 {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc-3v3";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-boot-on;
+	};
+
+	/* Board 5V Power */
+	reg_vcc_5v: vcc-5v {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc-5v";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		regulator-boot-on;
+	};
+
+	/* Boot rom for debug */
+	boot_rom: brom@0 {
+		compatible = "mtd-rom";
+		reg = <0xFFFF0000 0x8000>;
+		bank-width = <4>;
+		probe-type = "map_rom";
+	};
+
+	/* 24M OSC for WK2114 */
+	wk2114_osc_24m: wk2114-clock {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <24000000>;
+		clock-accuracy = <50000>;
+		clock-output-names = "WK2114-24M";
+	};
+	/* 24M OSC for IT6616FN */
+	it6616fn_osc_27m: it6616fn-clock {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <27000000>;
+		clock-accuracy = <50000>;
+		clock-output-names = "IT6616FN-27M";
+	};
+};
+
+/* Audio codec */
+&codec {
+	status = "okay";
+	allwinner,audio-routing =
+		"Speaker", "LINEOUT",
+		"MIC1", "Mic",
+		"MIC2", "Headset Mic",
+		"Mic",	"MBIAS";
+};
+
+/* Camera CSI */
+&csi0 {
+	status = "okay";
+	/* TODO: untested */
+};
+
+/* HDMI IT6616FN */
+&csi1 {
+	status = "okay";
+
+	/* TODO: not work yet */
+	port {
+		csi1_ep: endpoint {
+			remote-endpoint = <&it6616_ep>;
+			bus-width = <8>;
+			hsync-active = <1>;
+			vsync-active = <0>;
+			data-active = <1>;
+			pclk-sample = <1>;
+		};
+	};
+};
+
+/* Display engine */
+&de {
+	status = "okay";
+	/* TODO: untested */
+};
+
+/* MIPI CSI PHY */
+&dphy {
+	status = "okay";
+	/* TODO: untested */
+};
+
+/* 10/100M Ethernet */
+&emac {
+	phy-handle = <&int_mii_phy>;
+	phy-supply = <&reg_dcdc3>;
+	phy-mode = "mii";
+	status = "okay";
+};
+
+/* AXP209 and IT6616FN */
+&i2c0 {
+	status = "okay";
+
+	axp209: pmic@34 {
+		compatible = "x-powers,axp209";
+		reg = <0x34>;
+		interrupt-parent = <&nmi_intc>;
+		interrupts = <0 IRQ_TYPE_LEVEL_LOW>;
+	};
+
+	it6616: it6616@48 {
+		status = "disabled";
+		/* TODO: not work yet */
+		compatible = "ite,it6616";
+		reg = <0x48>;
+		reset-gpio = <&pio 4 18 GPIO_ACTIVE_LOW>; /* PE18 */
+		power-gpio = <&pio 4 19 GPIO_ACTIVE_LOW>; /* PE19 */
+
+		port {
+			it6616_ep: endpoint {
+				remote-endpoint = <&csi1_ep>;
+				data-lanes = <1 2>;
+			};
+		};
+	};
+};
+
+/* Camera and NS2009 */
+&i2c1 {
+	pinctrl-0 = <&i2c1_pb_pins>;
+	pinctrl-names = "default";
+	status = "okay";
+
+	/* TODO: need driver & untested */
+	ns2009: ns2009@48 {
+		compatible = "nsiway,ns2009";
+		reg = <0x48>;
+		interrupt-parent = <&pio>;
+		interrupts = <1 12 IRQ_TYPE_EDGE_RISING>; /* PB12 */
+	};
+};
+
+/* I2S for IT6616FN */
+&i2s0 {
+	status = "okay";
+	/* TODO: untested */
+};
+
+/* I2S Pins for IT6616FN */
+&i2s0_pins {
+	pins = "PG10", "PG11", "PG13"; /* PG12 used for REC_LED */
+	/* TODO: untested */
+};
+
+/* Image Signal Processor */
+&isp {
+	status = "okay";
+	/* TODO: untested */
+};
+
+/* Buttons in Panel */
+&lradc {
+	vref-supply = <&reg_dcdc3>;
+	status = "okay";
+
+	lradc_btn1: button-200 {
+		label = "VOL+";
+		linux,code = <KEY_F1>;
+		channel = <0>;
+		voltage = <200000>;
+	};
+
+	lradc_btn2: button-400 {
+		label = "VOL+1";
+		linux,code = <KEY_F2>;
+		channel = <0>;
+		voltage = <400000>;
+	};
+
+	lradc_btn3: button-600 {
+		label = "VOL+2";
+		linux,code = <KEY_F3>;
+		channel = <0>;
+		voltage = <600000>;
+	};
+
+	lradc_btn4: button-800 {
+		label = "VOL+3";
+		linux,code = <KEY_F4>;
+		channel = <0>;
+		voltage = <800000>;
+	};
+};
+
+/* MIPI CSI */
+&mipi_csi2 {
+	status = "okay";
+	/* TODO: untested */
+};
+
+/* SD card slots expander */
+&mmc0 {
+	cd-gpio = <&pio 5 6 GPIO_ACTIVE_LOW>; /* PF6 */
+	bus-width = <4>;
+	vmmc-supply = <&reg_dcdc3>;
+	status = "okay";
+
+	/* TODO: not work yet */
+	sdio_expander: txs02612@0 {
+		compatible = "ti,txs02612";
+		reg = <0>;
+		select-gpio = <&pio 6 8 GPIO_ACTIVE_LOW>; /* PG8 (mux with SWC?) */
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		slot_sd: port@0 {
+			reg = <0>;
+			gpio-value = <0>;
+			bus-width = <4>;
+		};
+
+		slot_wifi: port@1 {
+			reg = <1>;
+			gpio-value = <1>;
+			bus-width = <4>;
+		};
+	};
+};
+
+/* Onboard eMMC */
+&mmc1 {
+	non-removable;
+	/* FIXME: actually 4bit, error happen when write requests */
+	bus-width = <1>;
+	/*bus-width = <4>;*/
+	cap-mmc-hw-reset;
+	vmmc-supply = <&reg_dcdc3>;
+	vqmmc-supply = <&reg_dcdc3>;
+	status = "okay";
+};
+
+/* SoC Pin Controller */
+&pio {
+	vcc-pb-supply = <&reg_vcc_3v3>;
+	vcc-pc-supply = <&reg_vcc_3v3>;
+	vcc-pd-supply = <&reg_dcdc3>;
+	vcc-pe-supply = <&reg_vcc_3v3>;
+	vcc-pf-supply = <&reg_dcdc3>;
+	vcc-pg-supply = <&reg_vcc_3v3>;
+};
+
+/* PWM for LCD Backlight */
+&pwm {
+	status = "okay";
+	/* TODO: untested */
+};
+
+/* Onboard SPI nor flash for boot */
+&spi0 {
+	status = "okay";
+
+	/* TODO: untested */
+	spi_flash: flash@0 {
+		reg = <0>;
+		compatible = "jedec,spi-nor";
+		spi-max-frequency = <50000000>;
+	};
+};
+
+/* Display connector */
+&tcon0 {
+	status = "okay";
+	/* TODO: untested */
+};
+
+/* Debug UART (CH343P and UART head) */
+&uart1 {
+	current-speed = <115200>;
+	pinctrl-0 = <&uart1_pg_pins>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+/* External RS232 */
+&uart2 {
+	current-speed = <115200>;
+	status = "okay";
+
+	wk2xx_uart {
+		/* TODO: need driver */
+		compatible = "wkic,wk2114";
+		clocks = <&wk2114_osc_24m>;
+		clock-names = "osc";
+	};
+};
+
+/* Peripheral USB Type-C to host or debug */
+&usb_otg {
+	dr_mode = "otg";
+	status = "okay";
+};
+
+/* mUSB PHY */
+&usbphy {
+	usb0_id_det-gpios = <&pio 6 9 GPIO_ACTIVE_HIGH>; /* PG9 */
+	status = "okay";
+};
+
+#include "axp209.dtsi"
+
+/* PoE 48V Power */
+&ac_power_supply {
+	status = "okay";
+};
+
+/* External Battery */
+&battery_power_supply {
+	status = "okay";
+};
+
+/* USB VBUS */
+&usb_power_supply {
+	status = "okay";
+};
+
+/* AXP209 1.25V for System and CPU */
+&reg_dcdc2 {
+	regulator-always-on;
+	regulator-min-microvolt = <1250000>;
+	regulator-max-microvolt = <1250000>;
+	regulator-name = "vdd-sys-cpu";
+};
+
+/* AXP209 3.3V for I/O */
+&reg_dcdc3 {
+	regulator-always-on;
+	regulator-min-microvolt = <3300000>;
+	regulator-max-microvolt = <3300000>;
+	regulator-name = "vcc-io";
+};
+
+/* AXP209 3.3V for RTC (always on) */
+&reg_ldo1 {
+	regulator-name = "vcc-rtc";
+};
+
+/* AXP209 3.0V for Analong and PLL */
+&reg_ldo2 {
+	regulator-always-on;
+	regulator-min-microvolt = <3000000>;
+	regulator-max-microvolt = <3000000>;
+	regulator-name = "avcc";
+};
+
+/* AXP209 2.8V / 3.3V for Camera */
+&reg_ldo3 {
+	regulator-always-on;
+	regulator-min-microvolt = <2800000>;
+	regulator-max-microvolt = <3300000>;
+	regulator-name = "vcc-pe-cam";
+	/* TODO: untested */
+};
