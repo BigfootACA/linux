@@ -198,6 +198,7 @@ config NWFLASH
 	  If you're not sure, say N.
 
 source "drivers/char/hw_random/Kconfig"
+source "drivers/char/cryptodev/Kconfig"
 
 config DTLK
 	tristate "Double Talk PC internal speech card support"
