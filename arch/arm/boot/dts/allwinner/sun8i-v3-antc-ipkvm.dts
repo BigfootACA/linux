@@ -74,19 +74,19 @@
 		// Relay SWA Power
 		relay_swa_power: relay-swa-power {
 			label = "relay:power";
-			gpios = <&pio 4 13 GPIO_ACTIVE_HIGH>; /* PE13 */
-			default-state = "off";
-		};
-
-		// Relay SWB Reset
-		relay_swa_reset: relay-swa-reset {
-			label = "relay:reset";
 			gpios = <&pio 4 14 GPIO_ACTIVE_HIGH>; /* PE14 */
 			default-state = "off";
 		};
 
+		// Relay SWB Reset
+		relay_swb_reset: relay-swb-reset {
+			label = "relay:reset";
+			gpios = <&pio 4 15 GPIO_ACTIVE_HIGH>; /* PE15 */
+			default-state = "off";
+		};
+
 		// Relay SWC Switch (mux with SDC_SEL0?)
-		relay_swa_switch: relay-swa-switch {
+		relay_swc_switch: relay-swc-switch {
 			label = "relay:switch";
 			gpios = <&pio 6 8 GPIO_ACTIVE_HIGH>; /* PG8 */
 			default-state = "off";
