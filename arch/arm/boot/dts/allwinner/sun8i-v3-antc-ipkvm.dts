@@ -203,23 +203,36 @@
 		"Mic",	"MBIAS";
 };
 
-/* Camera CSI */
+/* HDMI IT6616FN */
 &csi0 {
 	status = "okay";
 	/* TODO: untested */
-};
 
-/* HDMI IT6616FN */
-&csi1 {
-	status = "okay";
-
-	/* TODO: not work yet */
 	port {
-		csi1_ep: endpoint {
-			remote-endpoint = <&it6616_ep>;
+		csi0_ep: endpoint {
+			remote-endpoint = <&i2c0_ep>;
 			bus-width = <8>;
 			hsync-active = <1>;
 			vsync-active = <0>;
+			data-active = <1>;
+			pclk-sample = <1>;
+		};
+	};
+};
+
+/* DVP Camera CSI */
+&csi1 {
+	status = "okay";
+	/* TODO: untested */
+	pinctrl-names = "default";
+	pinctrl-0 = <&csi1_pins>;
+
+	port {
+		csi1_ep: endpoint {
+			remote-endpoint = <&i2c1_ep>;
+			bus-width = <8>;
+			hsync-active = <1>;
+			vsync-active = <1>;
 			data-active = <1>;
 			pclk-sample = <1>;
 		};
@@ -257,7 +270,7 @@
 		interrupts = <0 IRQ_TYPE_LEVEL_LOW>;
 	};
 
-	it6616: it6616@48 {
+	it6616fn: it6616fn@48 {
 		status = "disabled";
 		/* TODO: not work yet */
 		compatible = "ite,it6616";
@@ -266,9 +279,9 @@
 		power-gpio = <&pio 4 19 GPIO_ACTIVE_LOW>; /* PE19 */
 
 		port {
-			it6616_ep: endpoint {
-				remote-endpoint = <&csi1_ep>;
-				data-lanes = <1 2>;
+			i2c0_ep: endpoint {
+				remote-endpoint = <&csi0_ep>;
+				data-lanes = <1 2 3 4>;
 			};
 		};
 	};
@@ -280,13 +293,41 @@
 	pinctrl-names = "default";
 	status = "okay";
 
-	/* TODO: need driver & untested */
+	/* Resistive touch screen controller */
 	ns2009: ns2009@48 {
 		compatible = "nsiway,ns2009";
+		/* TODO: need driver & untested */
 		reg = <0x48>;
 		interrupt-parent = <&pio>;
 		interrupts = <1 12 IRQ_TYPE_EDGE_RISING>; /* PB12 */
 	};
+
+	/* DVP Camera GC0308 640x480 */
+	gc0308: camera-sensor@21 {
+		compatible = "galaxycore,gc0308";
+		reg = <0x21>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&csi1_mclk_pin>;
+		clocks = <&ccu CLK_CSI1_MCLK>;
+		clock-names = "xclk";
+
+		powerdown-gpios = <&pio 4 17 GPIO_ACTIVE_HIGH>; /* PE17 */
+		reset-gpios = <&pio 4 16 GPIO_ACTIVE_LOW>; /* PE16 */
+		vdd28-supply = <&reg_ldo3>;
+
+		port {
+			i2c1_ep: endpoint {
+				remote-endpoint = <&csi1_ep>;
+				bus-width = <8>;
+				data-shift = <2>;
+				hsync-active = <1>;
+				vsync-active = <1>;
+				data-active = <1>;
+				pclk-sample = <1>;
+			};
+		};
+	};
+
 };
 
 /* I2S for IT6616FN */
@@ -396,6 +437,13 @@
 	vcc-pe-supply = <&reg_vcc_3v3>;
 	vcc-pf-supply = <&reg_vcc_3v3>;
 	vcc-pg-supply = <&reg_vcc_3v3>;
+
+	/* Pins for CSI1 */
+	csi1_pins: csi1-pins {
+		pins = "PE0", "PE2", "PE3", "PE6", "PE7",
+			"PE8", "PE9", "PE10", "PE11", "PE12";
+		function = "csi";
+	};
 
 	/* Pins for LCD Panel */
 	lcd_rgb666_pins: lcd-rgb666-pins {
