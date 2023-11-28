@@ -157,6 +157,16 @@
 		regulator-boot-on;
 	};
 
+	/* USB Type-C 5V VBUS */
+	reg_usb_vbus: usb-vbus {
+		compatible = "regulator-fixed";
+		regulator-name = "usb-vbus";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		enable-active-high;
+		gpio = <&pio 1 2 GPIO_ACTIVE_HIGH>; /* PB2 */
+	};
+
 	/* Boot rom for debug */
 	boot_rom: brom@0 {
 		compatible = "mtd-rom";
@@ -460,6 +470,7 @@
 /* mUSB PHY */
 &usbphy {
 	usb0_id_det-gpios = <&pio 6 9 GPIO_ACTIVE_HIGH>; /* PG9 */
+	usb0_vbus-supply = <&reg_usb_vbus>;
 	status = "okay";
 };
 
