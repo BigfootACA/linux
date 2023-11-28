@@ -295,11 +295,13 @@
 
 	/* Resistive touch screen controller */
 	ns2009: ns2009@48 {
-		compatible = "nsiway,ns2009";
-		/* TODO: need driver & untested */
+		compatible = "nsiway,ns2009", "ti,tsc2007";
+		/* TODO: untested */
 		reg = <0x48>;
 		interrupt-parent = <&pio>;
 		interrupts = <1 12 IRQ_TYPE_EDGE_RISING>; /* PB12 */
+		gpios = <&pio 1 12 GPIO_ACTIVE_LOW>;
+		ti,x-plate-ohms = <180>;
 	};
 
 	/* DVP Camera GC0308 640x480 */
