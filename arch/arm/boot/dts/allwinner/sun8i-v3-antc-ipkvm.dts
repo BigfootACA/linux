@@ -121,8 +121,22 @@
 		pwms = <&pwm 0 50000 PWM_POLARITY_INVERTED>;
 		brightness-levels = <0 10 20 30 40 50 60 70 80 90 100>;
 		default-brightness-level = <8>;
-		enable-gpios = <&pio 1 13 GPIO_ACTIVE_LOW>; /* PB13 */
 		power-supply = <&reg_vcc_5v>;
+	};
+
+	/* LCD Panel */
+	panel: panel {
+		/* TODO: untested */
+		compatible = "lg,lb070wv8", "simple-panel";
+		backlight = <&backlight>;
+		enable-gpios = <&pio 1 13 GPIO_ACTIVE_HIGH>; /* PB13 */
+		power-supply = <&reg_vcc_5v>;
+
+		port {
+			panel_input: endpoint {
+				remote-endpoint = <&tcon0_out_lcd>;
+			};
+		};
 	};
 
 	/* For pin controller */
@@ -368,10 +382,19 @@
 &pio {
 	vcc-pb-supply = <&reg_vcc_3v3>;
 	vcc-pc-supply = <&reg_vcc_3v3>;
-	vcc-pd-supply = <&reg_dcdc3>;
+	vcc-pd-supply = <&reg_vcc_3v3>;
 	vcc-pe-supply = <&reg_vcc_3v3>;
-	vcc-pf-supply = <&reg_dcdc3>;
+	vcc-pf-supply = <&reg_vcc_3v3>;
 	vcc-pg-supply = <&reg_vcc_3v3>;
+
+	/* Pins for LCD Panel */
+	lcd_rgb666_pins: lcd-rgb666-pins {
+		pins = "PD0", "PD1", "PD2", "PD3", "PD4", "PD5",
+			"PD6", "PD7", "PD8", "PD9", "PD10", "PD11",
+			"PD12", "PD13", "PD14", "PD15", "PD16",
+			"PD17", "PD18", "PD19", "PD20", "PD21";
+		function = "lcd";
+	};
 };
 
 /* PWM for LCD Backlight */
@@ -395,7 +418,16 @@
 /* Display connector */
 &tcon0 {
 	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&lcd_rgb666_pins>;
 	/* TODO: untested */
+};
+
+/* Display panel */
+&tcon0_out {
+	tcon0_out_lcd: endpoint {
+		remote-endpoint = <&panel_input>;
+	};
 };
 
 /* Debug UART (CH343P and UART head) */
