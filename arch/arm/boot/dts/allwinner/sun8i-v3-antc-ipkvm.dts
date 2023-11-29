@@ -203,6 +203,12 @@
 		"Mic",	"MBIAS";
 };
 
+/* Regulator for CPU */
+&cpu0 {
+	cpu-supply = <&reg_dcdc2>;
+	/* FIXME: DVFS not work */
+};
+
 /* HDMI IT6616FN */
 &csi0 {
 	status = "okay";
@@ -553,8 +559,9 @@
 /* AXP209 1.25V for System and CPU */
 &reg_dcdc2 {
 	regulator-always-on;
-	regulator-min-microvolt = <1250000>;
-	regulator-max-microvolt = <1250000>;
+	regulator-boot-on;
+	regulator-min-microvolt = <700000>;
+	regulator-max-microvolt = <1300000>;
 	regulator-name = "vdd-sys-cpu";
 };
 
