@@ -184,6 +184,12 @@ qcs8300-ride-el2-dtbs := qcs8300-ride.dtb monaco-el2.dtbo
 
 dtb-$(CONFIG_ARCH_QCOM)	+= qcs8300-ride-el2.dtb
 dtb-$(CONFIG_ARCH_QCOM)	+= qcs8550-aim300-aiot.dtb
+dtb-$(CONFIG_ARCH_QCOM)	+= qcs8550-ayn-odin2.dtb
+DTC_FLAGS_qcs8550-ayn-odin2-hypdtbo := -@
+qcs8550-ayn-odin2-hypdtbo-dtbs	:= qcs8550-ayn-odin2.dtb qcs8550-ayn-odin2-hypdtbo.dtbo
+qcs8550-ayn-odin2-sbc-dtbs	:= qcs8550-ayn-odin2.dtb qcs8550-ayn-odin2-sbc.dtbo
+dtb-$(CONFIG_ARCH_QCOM)	+= qcs8550-ayn-odin2-hypdtbo.dtb
+dtb-$(CONFIG_ARCH_QCOM)	+= qcs8550-ayn-odin2-sbc.dtb
 dtb-$(CONFIG_ARCH_QCOM)	+= qcs9100-ride.dtb
 dtb-$(CONFIG_ARCH_QCOM)	+= qcs9100-ride-r3.dtb
 
