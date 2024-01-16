@@ -223,6 +223,12 @@ enum v4l2_colorfx {
 #define V4L2_CID_USER_UVC_BASE			(V4L2_CID_USER_BASE + 0x11e0)
 
 /*
+ * The base for IT6616 driver controls.
+ * We reserve 16 controls for this driver.
+ */
+#define V4L2_CID_USER_IT6616_BASE		(V4L2_CID_USER_BASE + 0x11f0)
+
+/*
  * The base for Rockchip ISP1 driver controls.
  * We reserve 16 controls for this driver.
  */

@@ -1294,6 +1294,21 @@ config VIDEO_LT6911UXE
 	  To compile this driver as a module, choose M here: the
 	  module will be called lt6911uxe.
 
+config VIDEO_IT6616
+	tristate "ITE IT6616 HDMI receiver"
+	depends on VIDEO_DEV && I2C
+	depends on SND_SOC
+	select HDMI
+	select SND_PCM
+	select V4L2_FWNODE
+	select MEDIA_CONTROLLER
+	select VIDEO_V4L2_SUBDEV_API
+	help
+	  V4L2 subdevice driver for the ITE IT6616 HDMI receivers.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called it6616.
+
 config VIDEO_KS0127
 	tristate "KS0127 video decoder"
 	depends on VIDEO_DEV && I2C
