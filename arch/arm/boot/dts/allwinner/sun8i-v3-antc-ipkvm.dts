@@ -212,18 +212,7 @@
 /* HDMI IT6616FN */
 &csi0 {
 	status = "okay";
-	/* TODO: untested */
-
-	port {
-		csi0_ep: endpoint {
-			remote-endpoint = <&i2c0_ep>;
-			bus-width = <8>;
-			hsync-active = <1>;
-			vsync-active = <0>;
-			data-active = <1>;
-			pclk-sample = <1>;
-		};
-	};
+	/* NOTICE: IT6616FN use mipi_csi2 */
 };
 
 /* DVP Camera CSI */
@@ -254,7 +243,6 @@
 /* MIPI CSI PHY */
 &dphy {
 	status = "okay";
-	/* TODO: untested */
 };
 
 /* 10/100M Ethernet */
@@ -277,12 +265,13 @@
 	};
 
 	it6616fn: it6616fn@48 {
-		status = "disabled";
-		/* TODO: not work yet */
+		status = "okay";
 		compatible = "ite,it6616";
 		reg = <0x48>;
 		reset-gpio = <&pio 4 18 GPIO_ACTIVE_LOW>; /* PE18 */
 		power-gpio = <&pio 4 19 GPIO_ACTIVE_LOW>; /* PE19 */
+		clocks = <&it6616fn_osc_27m 0>;
+		clock-names = "xvclk";
 
 		port {
 			i2c0_ep: endpoint {
@@ -399,10 +388,17 @@
 	};
 };
 
-/* MIPI CSI */
+/* HDMI IT6616FN */
 &mipi_csi2 {
 	status = "okay";
-	/* TODO: untested */
+};
+
+/* HDMI IT6616FN Endpoint */
+&mipi_csi2_in {
+	csi0_ep: endpoint {
+		remote-endpoint = <&i2c0_ep>;
+		data-lanes = <1 2 3 4>;
+	};
 };
 
 /* SD card slots expander */
