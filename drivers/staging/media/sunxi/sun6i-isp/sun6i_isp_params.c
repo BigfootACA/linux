@@ -410,6 +410,8 @@ static int sun6i_isp_params_enum_fmt(struct file *file, void *private,
 		return -EINVAL;
 
 	fmtdesc->pixelformat = params_format->dataformat;
+	snprintf(fmtdesc->description, sizeof(fmtdesc->description),
+		"Allwinner SUN6I ISP Format");
 
 	return 0;
 }
