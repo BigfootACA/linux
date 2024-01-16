@@ -63,6 +63,11 @@ static const struct sun6i_mipi_csi2_format sun6i_mipi_csi2_formats[] = {
 		.data_type	= MIPI_CSI2_DT_RAW10,
 		.bpp		= 10,
 	},
+	{
+		.mbus_code      = MEDIA_BUS_FMT_UYVY8_2X8,
+		.data_type	= MIPI_CSI2_DT_YUV422_8B,
+		.bpp            = 8,
+	},
 };
 
 static const struct sun6i_mipi_csi2_format *
@@ -747,6 +752,7 @@ static void sun6i_mipi_csi2_remove(struct platform_device *platform_dev)
 
 static const struct of_device_id sun6i_mipi_csi2_of_match[] = {
 	{ .compatible	= "allwinner,sun6i-a31-mipi-csi2" },
+	{ .compatible	= "allwinner,sun8i-v3s-mipi-csi2" },
 	{},
 };
 MODULE_DEVICE_TABLE(of, sun6i_mipi_csi2_of_match);
