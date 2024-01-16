@@ -62,6 +62,11 @@ static const struct sun6i_isp_proc_format sun6i_isp_proc_formats[] = {
 		.mbus_code	= MEDIA_BUS_FMT_SRGGB10_1X10,
 		.input_format	= SUN6I_ISP_INPUT_FMT_RAW_RGGB,
 	},
+	{
+		.mbus_code	= MEDIA_BUS_FMT_UYVY8_2X8,
+		.input_format	= SUN6I_ISP_INPUT_FMT_YUV422,
+		.input_yuv_seq	= SUN6I_ISP_INPUT_YUV_SEQ_UYVY,
+	},
 };
 
 const struct sun6i_isp_proc_format *sun6i_isp_proc_format_find(u32 mbus_code)
