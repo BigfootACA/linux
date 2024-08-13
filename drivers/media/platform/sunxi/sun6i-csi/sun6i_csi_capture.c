@@ -26,19 +26,19 @@ void sun6i_csi_capture_dimensions(struct sun6i_csi_device *csi_dev,
 				  unsigned int *width, unsigned int *height)
 {
 	if (width)
-		*width = csi_dev->capture.format.fmt.pix.width;
+		*width = csi_dev->capture.format.fmt.pix_mp.width;
 	if (height)
-		*height = csi_dev->capture.format.fmt.pix.height;
+		*height = csi_dev->capture.format.fmt.pix_mp.height;
 }
 
 void sun6i_csi_capture_format(struct sun6i_csi_device *csi_dev,
 			      u32 *pixelformat, u32 *field)
 {
 	if (pixelformat)
-		*pixelformat = csi_dev->capture.format.fmt.pix.pixelformat;
+		*pixelformat = csi_dev->capture.format.fmt.pix_mp.pixelformat;
 
 	if (field)
-		*field = csi_dev->capture.format.fmt.pix.field;
+		*field = csi_dev->capture.format.fmt.pix_mp.field;
 }
 
 /* Format */
@@ -555,13 +555,24 @@ static int sun6i_csi_capture_queue_setup(struct vb2_queue *queue,
 					 struct device *alloc_devs[])
 {
 	struct sun6i_csi_device *csi_dev = vb2_get_drv_priv(queue);
-	unsigned int size = csi_dev->capture.format.fmt.pix.sizeimage;
+	struct v4l2_pix_format_mplane *fmt;
+	unsigned int i;
 
-	if (*planes_count)
-		return sizes[0] < size ? -EINVAL : 0;
+	fmt = &csi_dev->capture.format.fmt.pix_mp;
 
-	*planes_count = 1;
-	sizes[0] = size;
+	if (*planes_count) {
+		if (*planes_count != fmt->num_planes)
+			return -EINVAL;
+
+		for (i = 0; i < fmt->num_planes; i++) {
+			if (sizes[i] < fmt->plane_fmt[i].sizeimage)
+				return -EINVAL;
+		}
+	} else {
+		*planes_count = fmt->num_planes;
+		for (i = 0; i < fmt->num_planes; i++)
+			sizes[i] = fmt->plane_fmt[i].sizeimage;
+	}
 
 	return 0;
 }
@@ -572,17 +583,21 @@ static int sun6i_csi_capture_buffer_prepare(struct vb2_buffer *buffer)
 	struct sun6i_csi_capture *capture = &csi_dev->capture;
 	struct v4l2_device *v4l2_dev = csi_dev->v4l2_dev;
 	struct vb2_v4l2_buffer *v4l2_buffer = to_vb2_v4l2_buffer(buffer);
-	unsigned long size = capture->format.fmt.pix.sizeimage;
+	unsigned int i;
 
-	if (vb2_plane_size(buffer, 0) < size) {
-		v4l2_err(v4l2_dev, "buffer too small (%lu < %lu)\n",
-			 vb2_plane_size(buffer, 0), size);
-		return -EINVAL;
+	for (i = 0; i < capture->format.fmt.pix_mp.num_planes; ++i) {
+		u32 sizeimage = capture->format.fmt.pix_mp.plane_fmt[i].sizeimage;
+
+		if (vb2_plane_size(buffer, 0) < sizeimage) {
+			v4l2_err(v4l2_dev, "buffer too small (%lu < %u)\n",
+				vb2_plane_size(buffer, 0), sizeimage);
+			return -EINVAL;
+		}
+
+		vb2_set_plane_payload(buffer, i, sizeimage);
 	}
 
-	vb2_set_plane_payload(buffer, 0, size);
-
-	v4l2_buffer->field = capture->format.fmt.pix.field;
+	v4l2_buffer->field = capture->format.fmt.pix_mp.field;
 
 	return 0;
 }
@@ -665,7 +680,7 @@ static const struct vb2_ops sun6i_csi_capture_queue_ops = {
 
 static void sun6i_csi_capture_format_prepare(struct v4l2_format *format)
 {
-	struct v4l2_pix_format *pix_format = &format->fmt.pix;
+	struct v4l2_pix_format_mplane *pix_format = &format->fmt.pix_mp;
 	const struct v4l2_format_info *info;
 	unsigned int width, height;
 
@@ -685,15 +700,17 @@ static void sun6i_csi_capture_format_prepare(struct v4l2_format *format)
 
 	switch (pix_format->pixelformat) {
 	case V4L2_PIX_FMT_NV12_16L16:
-		pix_format->bytesperline = width * 12 / 8;
-		pix_format->sizeimage = pix_format->bytesperline * height;
+		pix_format->plane_fmt[0].bytesperline = width * 12 / 8;
+		pix_format->plane_fmt[0].sizeimage = pix_format->plane_fmt[0].bytesperline * height;
+		pix_format->num_planes = 1;
 		break;
 	case V4L2_PIX_FMT_JPEG:
-		pix_format->bytesperline = width;
-		pix_format->sizeimage = pix_format->bytesperline * height;
+		pix_format->plane_fmt[0].bytesperline = width;
+		pix_format->plane_fmt[0].sizeimage = pix_format->plane_fmt[0].bytesperline * height;
+		pix_format->num_planes = 1;
 		break;
 	default:
-		v4l2_fill_pixfmt(pix_format, pix_format->pixelformat,
+		v4l2_fill_pixfmt_mp(pix_format, pix_format->pixelformat,
 				 width, height);
 		break;
 	}
@@ -977,7 +994,7 @@ int sun6i_csi_capture_setup(struct sun6i_csi_device *csi_dev)
 	struct vb2_queue *queue = &capture->queue;
 	struct media_pad *pad = &capture->pad;
 	struct v4l2_format *format = &csi_dev->capture.format;
-	struct v4l2_pix_format *pix_format = &format->fmt.pix;
+	struct v4l2_pix_format_mplane *pix_format = &format->fmt.pix_mp;
 	int ret;
 
 	/* This may happen with multiple bridge notifier bound calls. */
@@ -1005,7 +1022,7 @@ int sun6i_csi_capture_setup(struct sun6i_csi_device *csi_dev)
 
 	mutex_init(&capture->lock);
 
-	queue->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+	queue->type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
 	queue->io_modes = VB2_MMAP | VB2_DMABUF;
 	queue->buf_struct_size = sizeof(struct sun6i_csi_buffer);
 	queue->ops = &sun6i_csi_capture_queue_ops;
@@ -1036,7 +1053,7 @@ int sun6i_csi_capture_setup(struct sun6i_csi_device *csi_dev)
 
 	strscpy(video_dev->name, SUN6I_CSI_CAPTURE_NAME,
 		sizeof(video_dev->name));
-	video_dev->device_caps = V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_STREAMING;
+	video_dev->device_caps = V4L2_CAP_VIDEO_CAPTURE_MPLANE | V4L2_CAP_STREAMING;
 	video_dev->vfl_dir = VFL_DIR_RX;
 	video_dev->release = video_device_release_empty;
 	video_dev->fops = &sun6i_csi_capture_fops;
