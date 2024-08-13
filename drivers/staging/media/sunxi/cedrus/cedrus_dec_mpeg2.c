@@ -46,7 +46,7 @@ static int cedrus_dec_mpeg2_job_configure(struct cedrus_context *ctx)
 	const struct v4l2_ctrl_mpeg2_sequence *seq = job->sequence;
 	const struct v4l2_ctrl_mpeg2_picture *pic = job->picture;
 	const struct v4l2_ctrl_mpeg2_quantisation *quant = job->quantisation;
-	struct v4l2_pix_format *pix_format = &ctx->v4l2.format_coded.fmt.pix;
+	struct v4l2_pix_format_mplane *pix_format = &ctx->v4l2.format_coded.fmt.pix_mp;
 	dma_addr_t picture_luma_addr, picture_chroma_addr, coded_addr;
 	unsigned int coded_size;
 	const u8 *matrix;
@@ -113,30 +113,34 @@ static int cedrus_dec_mpeg2_job_configure(struct cedrus_context *ctx)
 	/* Forward and backward prediction reference buffers. */
 
 	cedrus_job_buffer_picture_ref_dma(ctx, pic->forward_ref_ts,
-					  &picture_luma_addr,
-					  &picture_chroma_addr);
+					  &picture_luma_addr, 0);
+
+	cedrus_job_buffer_picture_ref_dma(ctx, pic->forward_ref_ts,
+					  &picture_chroma_addr, 1);
 
 	cedrus_write(dev, VE_DEC_MPEG_FWD_REF_LUMA_ADDR, picture_luma_addr);
 	cedrus_write(dev, VE_DEC_MPEG_FWD_REF_CHROMA_ADDR, picture_chroma_addr);
 
 	cedrus_job_buffer_picture_ref_dma(ctx, pic->backward_ref_ts,
-					  &picture_luma_addr,
-					  &picture_chroma_addr);
+					  &picture_luma_addr, 0);
+
+	cedrus_job_buffer_picture_ref_dma(ctx, pic->backward_ref_ts,
+					  &picture_chroma_addr, 1);
 
 	cedrus_write(dev, VE_DEC_MPEG_BWD_REF_LUMA_ADDR, picture_luma_addr);
 	cedrus_write(dev, VE_DEC_MPEG_BWD_REF_CHROMA_ADDR, picture_chroma_addr);
 
 	/* Destination luma and chroma buffers. */
 
-	cedrus_job_buffer_picture_dma(ctx, &picture_luma_addr,
-				      &picture_chroma_addr);
+	cedrus_job_buffer_picture_dma(ctx, &picture_luma_addr, 0);
+	cedrus_job_buffer_picture_dma(ctx, &picture_chroma_addr, 1);
 
 	cedrus_write(dev, VE_DEC_MPEG_REC_LUMA, picture_luma_addr);
 	cedrus_write(dev, VE_DEC_MPEG_REC_CHROMA, picture_chroma_addr);
 
 	/* Coded buffer. */
 
-	cedrus_job_buffer_coded_dma(ctx, &coded_addr, &coded_size);
+	cedrus_job_buffer_coded_dma(ctx, &coded_addr, &coded_size, 0);
 
 	cedrus_write(dev, VE_DEC_MPEG_VLD_LEN, coded_size * 8);
 	cedrus_write(dev, VE_DEC_MPEG_VLD_OFFSET, 0);

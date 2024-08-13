@@ -45,8 +45,8 @@ static int cedrus_dec_h264_setup(struct cedrus_context *cedrus_ctx)
 {
 	struct device *dev = cedrus_ctx->proc->dev->dev;
 	struct cedrus_dec_h264_context *h264_ctx = cedrus_ctx->engine_ctx;
-	struct v4l2_pix_format *pix_format =
-		&cedrus_ctx->v4l2.format_coded.fmt.pix;
+	struct v4l2_pix_format_mplane *pix_format =
+		&cedrus_ctx->v4l2.format_coded.fmt.pix_mp;
 	unsigned int pic_info_buf_size;
 	int ret;
 
@@ -251,7 +251,8 @@ static void cedrus_fill_ref_pic(struct cedrus_context *ctx,
 	dma_addr_t luma_addr, chroma_addr;
 	dma_addr_t mv_col_buf_top_addr, mv_col_buf_bottom_addr;
 
-	cedrus_buffer_picture_dma(ctx, cedrus_buffer, &luma_addr, &chroma_addr);
+	cedrus_buffer_picture_dma(ctx, cedrus_buffer, &luma_addr, 0);
+	cedrus_buffer_picture_dma(ctx, cedrus_buffer, &chroma_addr, 1);
 	cedrus_dec_h264_mv_col_buf_dma(cedrus_buffer, &mv_col_buf_top_addr,
 				       &mv_col_buf_bottom_addr);
 
@@ -272,7 +273,7 @@ static int cedrus_write_frame_list(struct cedrus_context *ctx)
 	const struct v4l2_ctrl_h264_decode_params *decode =
 		h264_job->decode_params;
 	const struct v4l2_ctrl_h264_sps *sps = h264_job->sps;
-	struct v4l2_pix_format *pix_format = &ctx->v4l2.format_coded.fmt.pix;
+	struct v4l2_pix_format_mplane *pix_format = &ctx->v4l2.format_coded.fmt.pix_mp;
 	struct cedrus_dec_h264_sram_ref_pic pic_list[CEDRUS_DEC_H264_FRAME_NUM];
 	struct cedrus_buffer *cedrus_buffer_picture;
 	struct cedrus_dec_h264_buffer *h264_buffer_picture;
@@ -537,14 +538,14 @@ static void cedrus_set_params(struct cedrus_context *ctx)
 	const struct v4l2_ctrl_h264_pps *pps = h264_job->pps;
 	const struct v4l2_ctrl_h264_sps *sps = h264_job->sps;
 	struct v4l2_m2m_ctx *m2m_ctx = ctx->v4l2.fh.m2m_ctx;
-	struct v4l2_pix_format *pix_format = &ctx->v4l2.format_coded.fmt.pix;
+	struct v4l2_pix_format_mplane *pix_format = &ctx->v4l2.format_coded.fmt.pix_mp;
 	dma_addr_t coded_addr;
 	unsigned int coded_size;
 	unsigned int pic_width_in_mbs;
 	bool mbaff_pic;
 	u32 value;
 
-	cedrus_job_buffer_coded_dma(ctx, &coded_addr, &coded_size);
+	cedrus_job_buffer_coded_dma(ctx, &coded_addr, &coded_size, 0);
 
 	cedrus_write(dev, VE_H264_VLD_OFFSET, 0);
 	cedrus_write(dev, VE_H264_VLD_LEN, coded_size * 8);

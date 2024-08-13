@@ -176,7 +176,7 @@ static void cedrus_context_ctrls_cleanup(struct cedrus_context *ctx)
 
 int cedrus_context_engine_update(struct cedrus_context *ctx)
 {
-	unsigned int pixelformat = ctx->v4l2.format_coded.fmt.pix.pixelformat;
+	unsigned int pixelformat = ctx->v4l2.format_coded.fmt.pix_mp.pixelformat;
 	struct vb2_queue *queue = v4l2_m2m_get_src_vq(ctx->v4l2.fh.m2m_ctx);
 	const struct cedrus_engine *engine;
 
@@ -200,7 +200,7 @@ int cedrus_context_engine_update(struct cedrus_context *ctx)
 
 int cedrus_context_selection_picture_reset(struct cedrus_context *ctx)
 {
-	struct v4l2_pix_format *pix_format = &ctx->v4l2.format_picture.fmt.pix;
+	struct v4l2_pix_format_mplane *pix_format = &ctx->v4l2.format_picture.fmt.pix_mp;
 	struct v4l2_rect *selection = &ctx->v4l2.selection_picture;
 
 	selection->left = 0;
@@ -371,21 +371,27 @@ static int cedrus_context_queue_setup(struct vb2_queue *queue,
 	unsigned int format_type =
 		cedrus_proc_format_type(ctx->proc, queue->type);
 	struct v4l2_format *format;
-	struct v4l2_pix_format *pix_format;
+	struct v4l2_pix_format_mplane *pix_format;
+	unsigned int i;
 
 	if (format_type == CEDRUS_FORMAT_TYPE_CODED)
 		format = &ctx->v4l2.format_coded;
 	else
 		format = &ctx->v4l2.format_picture;
 
-	pix_format = &format->fmt.pix;
+	pix_format = &format->fmt.pix_mp;
 
 	if (*planes_count) {
-		if (sizes[0] < pix_format->sizeimage)
+		if (*planes_count != pix_format->num_planes)
 			return -EINVAL;
+
+		for (i = 0; i < pix_format->num_planes; i++)
+			if (sizes[i] < pix_format->plane_fmt[i].sizeimage)
+				return -EINVAL;
 	} else {
-		sizes[0] = pix_format->sizeimage;
-		*planes_count = 1;
+		*planes_count = pix_format->num_planes;
+		for (i = 0; i < pix_format->num_planes; i++)
+			sizes[i] = pix_format->plane_fmt[i].sizeimage;
 	}
 
 	return 0;
@@ -474,21 +480,26 @@ static int cedrus_context_buffer_prepare(struct vb2_buffer *vb2_buffer)
 	unsigned int format_type =
 		cedrus_proc_format_type(ctx->proc, queue->type);
 	struct v4l2_format *format;
-	struct v4l2_pix_format *pix_format;
+	struct v4l2_pix_format_mplane *pix_format;
+	unsigned int i;
 
 	if (format_type == CEDRUS_FORMAT_TYPE_CODED)
 		format = &ctx->v4l2.format_coded;
 	else
 		format = &ctx->v4l2.format_picture;
 
-	pix_format = &format->fmt.pix;
+	pix_format = &format->fmt.pix_mp;
 
-	if (vb2_plane_size(vb2_buffer, 0) < pix_format->sizeimage)
-		return -EINVAL;
+	for (i = 0; i < pix_format->num_planes; ++i) {
+		u32 sizeimage = pix_format->plane_fmt[i].sizeimage;
 
-	/* The picture buffer bytesused is always from the driver side. */
-	if (format_type == CEDRUS_FORMAT_TYPE_PICTURE)
-		vb2_set_plane_payload(vb2_buffer, 0, pix_format->sizeimage);
+		if (vb2_plane_size(vb2_buffer, i) < sizeimage)
+			return -EINVAL;
+
+		/* The picture buffer bytesused is always from the driver side. */
+		if (format_type == CEDRUS_FORMAT_TYPE_PICTURE)
+			vb2_set_plane_payload(vb2_buffer, i, sizeimage);
+	}
 
 	return 0;
 }
@@ -637,7 +648,7 @@ static int cedrus_context_queue_init(void *private, struct vb2_queue *src_queue,
 
 	/* Source (output) */
 
-	src_queue->type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
+	src_queue->type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
 	src_queue->io_modes = VB2_MMAP | VB2_DMABUF;
 	src_queue->buf_struct_size = sizeof(struct cedrus_buffer);
 	src_queue->ops = &cedrus_context_queue_ops;
@@ -662,7 +673,7 @@ static int cedrus_context_queue_init(void *private, struct vb2_queue *src_queue,
 
 	/* Destination (capture) */
 
-	dst_queue->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+	dst_queue->type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
 	dst_queue->io_modes = VB2_MMAP | VB2_DMABUF;
 	dst_queue->buf_struct_size = sizeof(struct cedrus_buffer);
 	dst_queue->ops = &cedrus_context_queue_ops;

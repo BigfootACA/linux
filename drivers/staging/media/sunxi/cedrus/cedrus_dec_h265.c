@@ -214,7 +214,8 @@ cedrus_dec_h265_frame_info_write_single(struct cedrus_context *ctx,
 	dma_addr_t mv_col_buf_top_addr, mv_col_buf_bottom_addr;
 	u32 sram_offset;
 
-	cedrus_buffer_picture_dma(ctx, buffer, &luma_addr, &chroma_addr);
+	cedrus_buffer_picture_dma(ctx, buffer, &luma_addr, 0);
+	cedrus_buffer_picture_dma(ctx, buffer, &chroma_addr, 1);
 
 	luma_addr = VE_DEC_H265_SRAM_DATA_ADDR_BASE(luma_addr);
 	chroma_addr = VE_DEC_H265_SRAM_DATA_ADDR_BASE(chroma_addr);
@@ -521,8 +522,8 @@ static int cedrus_dec_h265_job_configure(struct cedrus_context *cedrus_ctx)
 		h265_job->decode_params;
 	const struct v4l2_hevc_dpb_entry *dpb = decode_params->dpb;
 	struct v4l2_m2m_ctx *m2m_ctx = cedrus_ctx->v4l2.fh.m2m_ctx;
-	struct v4l2_pix_format *pix_format =
-		&cedrus_ctx->v4l2.format_coded.fmt.pix;
+	struct v4l2_pix_format_mplane *pix_format =
+		&cedrus_ctx->v4l2.format_coded.fmt.pix_mp;
 	unsigned int width_in_ctb_luma, ctb_size_luma;
 	unsigned int log2_max_luma_coding_block_size;
 	unsigned int ctb_addr_x, ctb_addr_y;
@@ -585,7 +586,7 @@ static int cedrus_dec_h265_job_configure(struct cedrus_context *cedrus_ctx)
 		}
 	}
 
-	cedrus_job_buffer_coded_dma(cedrus_ctx, &coded_addr, &coded_size);
+	cedrus_job_buffer_coded_dma(cedrus_ctx, &coded_addr, &coded_size, 0);
 
 	/* Source offset and length in bits. */
 

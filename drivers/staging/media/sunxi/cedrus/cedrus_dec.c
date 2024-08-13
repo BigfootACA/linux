@@ -31,6 +31,11 @@ static const struct cedrus_format cedrus_dec_formats[] = {
 		.type		= CEDRUS_FORMAT_TYPE_PICTURE,
 	},
 	{
+		.pixelformat	= V4L2_PIX_FMT_NV12M,
+		.capabilities	= CEDRUS_CAPABILITY_UNTILED,
+		.type		= CEDRUS_FORMAT_TYPE_PICTURE,
+	},
+	{
 		.pixelformat	= V4L2_PIX_FMT_NV12_32L32,
 		.type		= CEDRUS_FORMAT_TYPE_PICTURE,
 	}
@@ -39,18 +44,19 @@ static const struct cedrus_format cedrus_dec_formats[] = {
 int cedrus_dec_format_coded_prepare(struct cedrus_context *ctx,
 				    struct v4l2_format *format)
 {
-	struct v4l2_pix_format *pix_format = &format->fmt.pix;
+	struct v4l2_pix_format_mplane *pix_format = &format->fmt.pix_mp;
 	/* Apply dimension and alignment constraints. */
 	v4l2_apply_frmsize_constraints(&pix_format->width, &pix_format->height,
 				       ctx->engine->frmsize);
 
 	/* Zero bytes per line for encoded source. */
-	pix_format->bytesperline = 0;
+	pix_format->plane_fmt[0].bytesperline = 0;
 
 	/* Choose some minimum size since this can't be 0 */
-	pix_format->sizeimage = max_t(u32, SZ_1K, pix_format->sizeimage);
+	pix_format->plane_fmt[0].sizeimage = max_t(u32, SZ_1K, pix_format->plane_fmt[0].sizeimage);
 
 	pix_format->field = V4L2_FIELD_NONE;
+	pix_format->num_planes = 1;
 
 	return 0;
 }
@@ -58,9 +64,9 @@ int cedrus_dec_format_coded_prepare(struct cedrus_context *ctx,
 int cedrus_dec_format_coded_configure(struct cedrus_context *ctx)
 {
 	struct cedrus_device *dev = ctx->proc->dev;
-	struct v4l2_pix_format *pix_format = &ctx->v4l2.format_coded.fmt.pix;
-	struct v4l2_pix_format *pix_format_picture =
-		&ctx->v4l2.format_picture.fmt.pix;
+	struct v4l2_pix_format_mplane *pix_format = &ctx->v4l2.format_coded.fmt.pix_mp;
+	struct v4l2_pix_format_mplane *pix_format_picture =
+		&ctx->v4l2.format_picture.fmt.pix_mp;
 	unsigned int width_picture = pix_format_picture->width;
 	u32 value = 0;
 
@@ -100,12 +106,11 @@ int cedrus_dec_format_coded_configure(struct cedrus_context *ctx)
 static int cedrus_dec_format_picture_prepare(struct cedrus_context *ctx,
 					     struct v4l2_format *format)
 {
-	struct v4l2_pix_format *pix_format = &format->fmt.pix;
-	struct v4l2_pix_format *pix_format_coded =
-		&ctx->v4l2.format_coded.fmt.pix;
+	struct v4l2_pix_format_mplane *pix_format = &format->fmt.pix_mp;
+	struct v4l2_pix_format_mplane *pix_format_coded =
+		&ctx->v4l2.format_coded.fmt.pix_mp;
 	unsigned int width, height;
-	unsigned int sizeimage;
-	unsigned int bytesperline = pix_format->bytesperline;
+	unsigned int bytesperline = pix_format->plane_fmt[0].bytesperline;
 
 	/* Picture format dimensions are copied from coded format. */
 	width = pix_format_coded->width;
@@ -120,13 +125,29 @@ static int cedrus_dec_format_picture_prepare(struct cedrus_context *ctx,
 
 	switch (pix_format->pixelformat) {
 	case V4L2_PIX_FMT_NV12:
+		pix_format->num_planes = 1;
+		pix_format->plane_fmt[0].bytesperline = bytesperline;
+
 		/* Luma plane size. */
-		sizeimage = bytesperline * height;
+		pix_format->plane_fmt[0].sizeimage = bytesperline * height;
 
 		/* Chroma plane size. */
-		sizeimage += bytesperline * height / 2;
+		pix_format->plane_fmt[0].sizeimage += bytesperline * height / 2;
+		break;
+	case V4L2_PIX_FMT_NV12M:
+		pix_format->num_planes = 2;
+
+		/* Luma plane size. */
+		pix_format->plane_fmt[0].bytesperline = bytesperline;
+		pix_format->plane_fmt[0].sizeimage = bytesperline * height;
+
+		/* Chroma plane size. */
+		pix_format->plane_fmt[1].bytesperline = bytesperline;
+		pix_format->plane_fmt[1].sizeimage = bytesperline * height / 2;
 		break;
 	case V4L2_PIX_FMT_NV12_32L32:
+		pix_format->num_planes = 2;
+
 		/* 32-aligned stride. */
 		width = ALIGN(width, 32);
 
@@ -137,10 +158,12 @@ static int cedrus_dec_format_picture_prepare(struct cedrus_context *ctx,
 		bytesperline = ALIGN(width, 32);
 
 		/* Luma plane size. */
-		sizeimage = bytesperline * height;
+		pix_format->plane_fmt[0].bytesperline = bytesperline;
+		pix_format->plane_fmt[0].sizeimage = bytesperline * height;
 
 		/* Chroma plane size. */
-		sizeimage += bytesperline * ALIGN(height, 64) / 2;
+		pix_format->plane_fmt[1].bytesperline = bytesperline;
+		pix_format->plane_fmt[1].sizeimage = bytesperline * ALIGN(height, 64) / 2;
 		break;
 	default:
 		return -EINVAL;
@@ -148,8 +171,6 @@ static int cedrus_dec_format_picture_prepare(struct cedrus_context *ctx,
 
 	pix_format->width = width;
 	pix_format->height = height;
-	pix_format->bytesperline = bytesperline;
-	pix_format->sizeimage = sizeimage;
 	pix_format->field = V4L2_FIELD_NONE;
 
 	/* Picture format information is copied from coded format. */
@@ -164,7 +185,7 @@ static int cedrus_dec_format_picture_prepare(struct cedrus_context *ctx,
 int cedrus_dec_format_picture_configure(struct cedrus_context *ctx)
 {
 	struct cedrus_device *dev = ctx->proc->dev;
-	struct v4l2_pix_format *pix_format = &ctx->v4l2.format_picture.fmt.pix;
+	struct v4l2_pix_format_mplane *pix_format = &ctx->v4l2.format_picture.fmt.pix_mp;
 	u32 luma_stride, chroma_stride;
 	u32 chroma_size;
 	u32 value;
@@ -202,7 +223,7 @@ static int cedrus_dec_format_setup(struct cedrus_context *ctx)
 {
 	struct cedrus_proc *proc = ctx->proc;
 	struct v4l2_format *format = &ctx->v4l2.format_coded;
-	struct v4l2_pix_format *pix_format = &format->fmt.pix;
+	struct v4l2_pix_format_mplane *pix_format = &format->fmt.pix_mp;
 	int ret;
 
 	format->type = cedrus_proc_buffer_type(proc, CEDRUS_FORMAT_TYPE_CODED);
@@ -240,9 +261,9 @@ static int cedrus_dec_format_propagate(struct cedrus_context *ctx,
 static bool cedrus_dec_format_dynamic_check(struct cedrus_context *ctx,
 					    struct v4l2_format *format)
 {
-	struct v4l2_pix_format *pix_format = &format->fmt.pix;
-	struct v4l2_pix_format *pix_format_coded =
-		&ctx->v4l2.format_coded.fmt.pix;
+	struct v4l2_pix_format_mplane *pix_format = &format->fmt.pix_mp;
+	struct v4l2_pix_format_mplane *pix_format_coded =
+		&ctx->v4l2.format_coded.fmt.pix_mp;
 	unsigned int buffer_type;
 	bool streaming;
 	bool busy;

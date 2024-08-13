@@ -137,36 +137,31 @@ static inline u64 cedrus_buffer_timestamp(struct cedrus_buffer *buffer)
 
 static inline void cedrus_buffer_picture_dma(struct cedrus_context *ctx,
 					     struct cedrus_buffer *cedrus_buffer,
-					     dma_addr_t *luma_addr,
-					     dma_addr_t *chroma_addr)
+					     dma_addr_t *addr,
+					     unsigned int plane_no)
 {
-	struct v4l2_pix_format *pix_format = &ctx->v4l2.format_picture.fmt.pix;
 	struct vb2_buffer *vb2_buffer = &cedrus_buffer->m2m_buffer.vb.vb2_buf;
-	dma_addr_t addr;
 
-	addr = vb2_dma_contig_plane_dma_addr(vb2_buffer, 0);
-	*luma_addr = addr;
-
-	addr += pix_format->bytesperline * pix_format->height;
-	*chroma_addr = addr;
+	*addr = vb2_dma_contig_plane_dma_addr(vb2_buffer, plane_no);
 }
 
 static inline void cedrus_buffer_coded_dma(struct cedrus_context *ctx,
 					   struct cedrus_buffer *cedrus_buffer,
-					   dma_addr_t *addr, unsigned int *size)
+					   dma_addr_t *addr, unsigned int *size,
+					   unsigned int plane_no)
 {
 	struct vb2_buffer *vb2_buffer = &cedrus_buffer->m2m_buffer.vb.vb2_buf;
 
-	*addr = vb2_dma_contig_plane_dma_addr(vb2_buffer, 0);
+	*addr = vb2_dma_contig_plane_dma_addr(vb2_buffer, plane_no);
 
 	/*
 	 * Use the payload size when decoding (provided by user) and the full
 	 * buffer size when encoding.
 	 */
 	if (ctx->proc->role == CEDRUS_ROLE_DECODER)
-		*size = vb2_get_plane_payload(vb2_buffer, 0);
+		*size = vb2_get_plane_payload(vb2_buffer, plane_no);
 	else
-		*size = vb2_plane_size(vb2_buffer, 0);
+		*size = vb2_plane_size(vb2_buffer, plane_no);
 }
 
 static inline struct cedrus_buffer *

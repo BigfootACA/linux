@@ -455,8 +455,8 @@ static int cedrus_enc_h264_setup(struct cedrus_context *cedrus_ctx)
 	struct v4l2_ctrl_handler *ctrl_handler = &cedrus_ctx->v4l2.ctrl_handler;
 	struct cedrus_enc_h264_context *h264_ctx = cedrus_ctx->engine_ctx;
 	struct cedrus_enc_h264_state *state = &h264_ctx->state;
-	struct v4l2_pix_format *pix_format =
-		&cedrus_ctx->v4l2.format_picture.fmt.pix;
+	struct v4l2_pix_format_mplane *pix_format =
+		&cedrus_ctx->v4l2.format_picture.fmt.pix_mp;
 	unsigned int id;
 	int ret;
 
@@ -528,8 +528,8 @@ static int cedrus_enc_h264_buffer_setup(struct cedrus_context *cedrus_ctx,
 	struct device *dev = cedrus_ctx->proc->dev->dev;
 	struct cedrus_enc_h264_buffer *h264_buffer =
 		cedrus_buffer->engine_buffer;
-	struct v4l2_pix_format *pix_format =
-		&cedrus_ctx->v4l2.format_picture.fmt.pix;
+	struct v4l2_pix_format_mplane *pix_format =
+		&cedrus_ctx->v4l2.format_picture.fmt.pix_mp;
 	unsigned int width_mbs, height_mbs;
 	unsigned int subpix_size_width, subpix_size_height;
 	int ret;
@@ -724,8 +724,8 @@ static void cedrus_enc_h264_job_configure_sps(struct cedrus_context *cedrus_ctx)
 	struct cedrus_device *dev = cedrus_ctx->proc->dev;
 	struct cedrus_enc_h264_job *job = cedrus_ctx->engine_job;
 	struct cedrus_enc_h264_context *h264_ctx = cedrus_ctx->engine_ctx;
-	struct v4l2_pix_format *pix_format =
-		&cedrus_ctx->v4l2.format_picture.fmt.pix;
+	struct v4l2_pix_format_mplane *pix_format =
+		&cedrus_ctx->v4l2.format_picture.fmt.pix_mp;
 	struct v4l2_fract *timeperframe = &cedrus_ctx->v4l2.timeperframe_coded;
 	struct v4l2_rect *selection = &cedrus_ctx->v4l2.selection_picture;
 	u32 crop_left, crop_right, crop_top, crop_bottom;
@@ -1105,8 +1105,8 @@ static int cedrus_enc_h264_job_configure(struct cedrus_context *cedrus_ctx)
 	struct cedrus_enc_h264_context *h264_ctx = cedrus_ctx->engine_ctx;
 	struct cedrus_enc_h264_buffer *h264_buffer =
 		cedrus_job_engine_buffer(cedrus_ctx);
-	struct v4l2_pix_format *pix_format =
-		&cedrus_ctx->v4l2.format_picture.fmt.pix;
+	struct v4l2_pix_format_mplane *pix_format =
+		&cedrus_ctx->v4l2.format_picture.fmt.pix_mp;
 	unsigned int stride_mbs_div_48;
 	unsigned int luma_size;
 	unsigned int size;
@@ -1119,7 +1119,7 @@ static int cedrus_enc_h264_job_configure(struct cedrus_context *cedrus_ctx)
 
 	cedrus_write(dev, VE_ENC_AVC_STM_BIT_OFFSET_REG, 0);
 
-	cedrus_job_buffer_coded_dma(cedrus_ctx, &addr, &size);
+	cedrus_job_buffer_coded_dma(cedrus_ctx, &addr, &size, 0);
 
 	cedrus_write(dev, VE_ENC_AVC_STM_START_ADDR_REG, addr);
 	cedrus_write(dev, VE_ENC_AVC_STM_END_ADDR_REG, addr + size - 1);
@@ -1215,7 +1215,7 @@ static int cedrus_enc_h264_job_configure(struct cedrus_context *cedrus_ctx)
 
 	cedrus_write(dev, VE_ENC_AVC_PARA0_REG, value);
 
-	stride_mbs_div_48 = DIV_ROUND_UP(pix_format->bytesperline / 16, 48);
+	stride_mbs_div_48 = DIV_ROUND_UP(pix_format->plane_fmt[0].bytesperline / 16, 48);
 
 	cedrus_write(dev, VE_ENC_AVC_PARA1_REG,
 		     VE_ENC_AVC_PARA1_QP_CHROMA_OFFSET0(job->chroma_qp_index_offset) |

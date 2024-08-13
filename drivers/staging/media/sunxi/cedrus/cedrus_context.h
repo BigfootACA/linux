@@ -62,11 +62,12 @@ struct cedrus_context {
 
 static inline void cedrus_buffer_picture_dma(struct cedrus_context *ctx,
 					     struct cedrus_buffer *cedrus_buffer,
-					     dma_addr_t *luma_addr,
-					     dma_addr_t *chroma_addr);
+					     dma_addr_t *addr,
+					     unsigned int plane_no);
 static inline void cedrus_buffer_coded_dma(struct cedrus_context *ctx,
 					   struct cedrus_buffer *cedrus_buffer,
-					   dma_addr_t *addr, unsigned int *size);
+					   dma_addr_t *addr, unsigned int *size,
+					   unsigned int plane_no);
 
 /* Job */
 
@@ -88,26 +89,27 @@ cedrus_job_buffer_picture(struct cedrus_context *ctx)
 
 static inline void cedrus_job_buffer_coded_dma(struct cedrus_context *ctx,
 					       dma_addr_t *addr,
-					       unsigned int *size)
+					       unsigned int *size,
+					       unsigned int plane_no)
 {
 	struct cedrus_buffer *buffer = cedrus_job_buffer_coded(ctx);
 
-	cedrus_buffer_coded_dma(ctx, buffer, addr, size);
+	cedrus_buffer_coded_dma(ctx, buffer, addr, size, plane_no);
 }
 
 static inline void cedrus_job_buffer_picture_dma(struct cedrus_context *ctx,
-						 dma_addr_t *luma_addr,
-						 dma_addr_t *chroma_addr)
+						 dma_addr_t *addr,
+						 unsigned int plane_no)
 {
 	struct cedrus_buffer *buffer = cedrus_job_buffer_picture(ctx);
 
-	cedrus_buffer_picture_dma(ctx, buffer, luma_addr, chroma_addr);
+	cedrus_buffer_picture_dma(ctx, buffer, addr, plane_no);
 }
 
 static inline void cedrus_job_buffer_picture_ref_dma(struct cedrus_context *ctx,
 						     u64 timestamp,
-						     dma_addr_t *luma_addr,
-						     dma_addr_t *chroma_addr)
+						     dma_addr_t *addr,
+						     unsigned int plane_no)
 {
 	struct vb2_queue *queue = ctx->job.queue_picture;
 	struct vb2_buffer *vb2_buffer;
@@ -115,15 +117,14 @@ static inline void cedrus_job_buffer_picture_ref_dma(struct cedrus_context *ctx,
 
 	vb2_buffer = vb2_find_buffer(queue, timestamp);
 	if (!vb2_buffer) {
-		*luma_addr = 0;
-		*chroma_addr = 0;
+		*addr = 0;
 		return;
 	}
 
 	cedrus_buffer = container_of(vb2_buffer, struct cedrus_buffer,
 				     m2m_buffer.vb.vb2_buf);
 
-	cedrus_buffer_picture_dma(ctx, cedrus_buffer, luma_addr, chroma_addr);
+	cedrus_buffer_picture_dma(ctx, cedrus_buffer, addr, plane_no);
 }
 
 static inline void *cedrus_job_engine_buffer(struct cedrus_context *ctx)

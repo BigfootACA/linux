@@ -696,7 +696,7 @@ static int cedrus_dec_vp8_job_configure(struct cedrus_context *cedrus_ctx)
 	cedrus_write(dev, VE_VP8_PART_SIZE_OFFSET,
 		     slice->first_part_size + header_size);
 
-	cedrus_job_buffer_coded_dma(cedrus_ctx, &coded_addr, &coded_size);
+	cedrus_job_buffer_coded_dma(cedrus_ctx, &coded_addr, &coded_size, 0);
 
 	cedrus_write(dev, VE_H264_VLD_LEN, coded_size * 8);
 
@@ -834,7 +834,8 @@ static int cedrus_dec_vp8_job_configure(struct cedrus_context *cedrus_ctx)
 
 	/* Destination picture. */
 
-	cedrus_job_buffer_picture_dma(cedrus_ctx, &luma_addr, &chroma_addr);
+	cedrus_job_buffer_picture_dma(cedrus_ctx, &luma_addr, 0);
+	cedrus_job_buffer_picture_dma(cedrus_ctx, &chroma_addr, 1);
 
 	cedrus_write(dev, VE_VP8_REC_LUMA, luma_addr);
 	cedrus_write(dev, VE_VP8_REC_CHROMA, chroma_addr);
@@ -842,7 +843,9 @@ static int cedrus_dec_vp8_job_configure(struct cedrus_context *cedrus_ctx)
 	/* Last frame reference. */
 
 	cedrus_job_buffer_picture_ref_dma(cedrus_ctx, slice->last_frame_ts,
-					  &luma_addr, &chroma_addr);
+					  &luma_addr, 0);
+	cedrus_job_buffer_picture_ref_dma(cedrus_ctx, slice->last_frame_ts,
+					  &chroma_addr, 1);
 
 	cedrus_write(dev, VE_VP8_FWD_LUMA, luma_addr);
 	cedrus_write(dev, VE_VP8_FWD_CHROMA, chroma_addr);
@@ -850,7 +853,9 @@ static int cedrus_dec_vp8_job_configure(struct cedrus_context *cedrus_ctx)
 	/* Golden frame reference. */
 
 	cedrus_job_buffer_picture_ref_dma(cedrus_ctx, slice->golden_frame_ts,
-					  &luma_addr, &chroma_addr);
+					  &luma_addr, 0);
+	cedrus_job_buffer_picture_ref_dma(cedrus_ctx, slice->golden_frame_ts,
+					  &chroma_addr, 1);
 
 	cedrus_write(dev, VE_VP8_BWD_LUMA, luma_addr);
 	cedrus_write(dev, VE_VP8_BWD_CHROMA, chroma_addr);
@@ -858,7 +863,9 @@ static int cedrus_dec_vp8_job_configure(struct cedrus_context *cedrus_ctx)
 	/* Alternate reference. */
 
 	cedrus_job_buffer_picture_ref_dma(cedrus_ctx, slice->alt_frame_ts,
-					  &luma_addr, &chroma_addr);
+					  &luma_addr, 0);
+	cedrus_job_buffer_picture_ref_dma(cedrus_ctx, slice->alt_frame_ts,
+					  &chroma_addr, 1);
 
 	cedrus_write(dev, VE_VP8_ALT_LUMA, luma_addr);
 	cedrus_write(dev, VE_VP8_ALT_CHROMA, chroma_addr);

@@ -113,14 +113,14 @@ static inline int cedrus_proc_buffer_type(struct cedrus_proc *proc,
 {
 	if (proc->role == CEDRUS_ROLE_DECODER) {
 		if (format_type == CEDRUS_FORMAT_TYPE_CODED)
-			return V4L2_BUF_TYPE_VIDEO_OUTPUT;
+			return V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
 		else
-			return V4L2_BUF_TYPE_VIDEO_CAPTURE;
+			return V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
 	} else {
 		if (format_type == CEDRUS_FORMAT_TYPE_CODED)
-			return V4L2_BUF_TYPE_VIDEO_CAPTURE;
+			return V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
 		else
-			return V4L2_BUF_TYPE_VIDEO_OUTPUT;
+			return V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
 	}
 }
 

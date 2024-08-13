@@ -82,7 +82,7 @@ int cedrus_proc_format_coded_prepare(struct cedrus_context *ctx,
 				     struct v4l2_format *format)
 {
 	struct cedrus_proc *proc = ctx->proc;
-	struct v4l2_pix_format *pix_format = &format->fmt.pix;
+	struct v4l2_pix_format_mplane *pix_format = &format->fmt.pix_mp;
 
 	/* Select the first coded format in case of invalid format. */
 	if (!cedrus_proc_format_check(proc, pix_format->pixelformat,
@@ -98,7 +98,7 @@ int cedrus_proc_format_picture_prepare(struct cedrus_context *ctx,
 				       struct v4l2_format *format)
 {
 	struct cedrus_proc *proc = ctx->proc;
-	struct v4l2_pix_format *pix_format = &format->fmt.pix;
+	struct v4l2_pix_format_mplane *pix_format = &format->fmt.pix_mp;
 
 	if (WARN_ON(!proc->ops || !proc->ops->format_picture_prepare))
 		return -ENODEV;
@@ -503,8 +503,8 @@ static int cedrus_proc_g_selection(struct file *file, void *private,
 			     v4l2.fh);
 	unsigned int format_type =
 		cedrus_proc_format_type(ctx->proc, selection->type);
-	struct v4l2_pix_format *pix_format =
-		&ctx->v4l2.format_picture.fmt.pix;
+	struct v4l2_pix_format_mplane *pix_format =
+		&ctx->v4l2.format_picture.fmt.pix_mp;
 
 	if (format_type != CEDRUS_FORMAT_TYPE_PICTURE)
 		return -EINVAL;
@@ -533,8 +533,8 @@ static int cedrus_proc_s_selection(struct file *file, void *private,
 			     v4l2.fh);
 	unsigned int format_type =
 		cedrus_proc_format_type(ctx->proc, selection->type);
-	struct v4l2_pix_format *pix_format =
-		&ctx->v4l2.format_picture.fmt.pix;
+	struct v4l2_pix_format_mplane *pix_format =
+		&ctx->v4l2.format_picture.fmt.pix_mp;
 	unsigned int width_max, height_max;
 
 	if (format_type != CEDRUS_FORMAT_TYPE_PICTURE)
@@ -634,14 +634,14 @@ static const struct v4l2_ioctl_ops cedrus_proc_ioctl_ops = {
 	.vidioc_querycap		= cedrus_proc_querycap,
 
 	.vidioc_enum_fmt_vid_out	= cedrus_proc_enum_fmt,
-	.vidioc_g_fmt_vid_out		= cedrus_proc_g_fmt,
-	.vidioc_s_fmt_vid_out		= cedrus_proc_s_fmt,
-	.vidioc_try_fmt_vid_out		= cedrus_proc_try_fmt,
+	.vidioc_g_fmt_vid_out_mplane	= cedrus_proc_g_fmt,
+	.vidioc_s_fmt_vid_out_mplane	= cedrus_proc_s_fmt,
+	.vidioc_try_fmt_vid_out_mplane	= cedrus_proc_try_fmt,
 
 	.vidioc_enum_fmt_vid_cap	= cedrus_proc_enum_fmt,
-	.vidioc_g_fmt_vid_cap		= cedrus_proc_g_fmt,
-	.vidioc_s_fmt_vid_cap		= cedrus_proc_s_fmt,
-	.vidioc_try_fmt_vid_cap		= cedrus_proc_try_fmt,
+	.vidioc_g_fmt_vid_cap_mplane	= cedrus_proc_g_fmt,
+	.vidioc_s_fmt_vid_cap_mplane	= cedrus_proc_s_fmt,
+	.vidioc_try_fmt_vid_cap_mplane	= cedrus_proc_try_fmt,
 
 	.vidioc_enum_framesizes		= cedrus_proc_enum_framesizes,
 	.vidioc_enum_frameintervals	= cedrus_proc_enum_frameintervals,
@@ -786,7 +786,7 @@ static int cedrus_proc_v4l2_setup(struct cedrus_proc *proc)
 
 	snprintf(video_dev->name, sizeof(video_dev->name), CEDRUS_NAME "-%s",
 		 suffix);
-	video_dev->device_caps = V4L2_CAP_VIDEO_M2M | V4L2_CAP_STREAMING;
+	video_dev->device_caps = V4L2_CAP_VIDEO_M2M_MPLANE | V4L2_CAP_STREAMING;
 	video_dev->vfl_dir = VFL_DIR_M2M;
 	video_dev->release = video_device_release_empty;
 	video_dev->fops = &cedrus_proc_fops;
