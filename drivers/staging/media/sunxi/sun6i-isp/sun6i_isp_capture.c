@@ -22,16 +22,16 @@ void sun6i_isp_capture_dimensions(struct sun6i_isp_device *isp_dev,
 				  unsigned int *width, unsigned int *height)
 {
 	if (width)
-		*width = isp_dev->capture.format.fmt.pix.width;
+		*width = isp_dev->capture.format.fmt.pix_mp.width;
 	if (height)
-		*height = isp_dev->capture.format.fmt.pix.height;
+		*height = isp_dev->capture.format.fmt.pix_mp.height;
 }
 
 void sun6i_isp_capture_format(struct sun6i_isp_device *isp_dev,
 			      u32 *pixelformat)
 {
 	if (pixelformat)
-		*pixelformat = isp_dev->capture.format.fmt.pix.pixelformat;
+		*pixelformat = isp_dev->capture.format.fmt.pix_mp.pixelformat;
 }
 
 /* Format */
@@ -39,6 +39,10 @@ void sun6i_isp_capture_format(struct sun6i_isp_device *isp_dev,
 static const struct sun6i_isp_capture_format sun6i_isp_capture_formats[] = {
 	{
 		.pixelformat		= V4L2_PIX_FMT_NV12,
+		.output_format		= SUN6I_ISP_OUTPUT_FMT_YUV420SP,
+	},
+	{
+		.pixelformat		= V4L2_PIX_FMT_NV12M,
 		.output_format		= SUN6I_ISP_OUTPUT_FMT_YUV420SP,
 	},
 	{
@@ -69,11 +73,13 @@ sun6i_isp_capture_buffer_configure(struct sun6i_isp_device *isp_dev,
 	struct vb2_buffer *vb2_buffer;
 	unsigned int width, height;
 	unsigned int width_aligned;
+	unsigned int plane;
 	dma_addr_t address;
 	u32 pixelformat;
 
+	plane = 0;
 	vb2_buffer = &isp_buffer->v4l2_buffer.vb2_buf;
-	address = vb2_dma_contig_plane_dma_addr(vb2_buffer, 0);
+	address = vb2_dma_contig_plane_dma_addr(vb2_buffer, plane++);
 
 	sun6i_isp_load_write(isp_dev, SUN6I_ISP_MCH_Y_ADDR0_REG,
 			     SUN6I_ISP_ADDR_VALUE(address));
@@ -89,16 +95,22 @@ sun6i_isp_capture_buffer_configure(struct sun6i_isp_device *isp_dev,
 	width_aligned = ALIGN(width, 2);
 
 	if (info->comp_planes > 1) {
-		address += info->bpp[0] * width_aligned * height;
+		if (info->mem_planes > 1)
+		 	address = vb2_dma_contig_plane_dma_addr(vb2_buffer, plane++);
+		else
+			address += info->bpp[0] * width_aligned * height;
 
 		sun6i_isp_load_write(isp_dev, SUN6I_ISP_MCH_U_ADDR0_REG,
 				     SUN6I_ISP_ADDR_VALUE(address));
 	}
 
 	if (info->comp_planes > 2) {
-		address += info->bpp[1] *
-			   DIV_ROUND_UP(width_aligned, info->hdiv) *
-			   DIV_ROUND_UP(height, info->vdiv);
+		if (info->mem_planes > 2)
+			address = vb2_dma_contig_plane_dma_addr(vb2_buffer, plane++);
+		else
+			address += info->bpp[1] *
+				   DIV_ROUND_UP(width_aligned, info->hdiv) *
+				   DIV_ROUND_UP(height, info->vdiv);
 
 		sun6i_isp_load_write(isp_dev, SUN6I_ISP_MCH_V_ADDR0_REG,
 				     SUN6I_ISP_ADDR_VALUE(address));
@@ -264,13 +276,23 @@ static int sun6i_isp_capture_queue_setup(struct vb2_queue *queue,
 					 struct device *alloc_devs[])
 {
 	struct sun6i_isp_device *isp_dev = vb2_get_drv_priv(queue);
-	unsigned int size = isp_dev->capture.format.fmt.pix.sizeimage;
+	struct v4l2_pix_format_mplane *pix_format;
+	unsigned int i;
 
-	if (*planes_count)
-		return sizes[0] < size ? -EINVAL : 0;
+	pix_format = &isp_dev->capture.format.fmt.pix_mp;
 
-	*planes_count = 1;
-	sizes[0] = size;
+	if (*planes_count) {
+		if (*planes_count != pix_format->num_planes)
+			return -EINVAL;
+
+		for (i = 0; i < pix_format->num_planes; i++)
+			if (sizes[i] < pix_format->plane_fmt[i].sizeimage)
+				return -EINVAL;
+	} else {
+		*planes_count = pix_format->num_planes;
+		for (i = 0; i < pix_format->num_planes; i++)
+			sizes[i] = pix_format->plane_fmt[i].sizeimage;
+	}
 
 	return 0;
 }
@@ -280,15 +302,22 @@ static int sun6i_isp_capture_buffer_prepare(struct vb2_buffer *vb2_buffer)
 	struct sun6i_isp_device *isp_dev =
 		vb2_get_drv_priv(vb2_buffer->vb2_queue);
 	struct v4l2_device *v4l2_dev = &isp_dev->v4l2.v4l2_dev;
-	unsigned int size = isp_dev->capture.format.fmt.pix.sizeimage;
+	struct v4l2_pix_format_mplane *pix_format;
+	unsigned int i;
 
-	if (vb2_plane_size(vb2_buffer, 0) < size) {
-		v4l2_err(v4l2_dev, "buffer too small (%lu < %u)\n",
-			 vb2_plane_size(vb2_buffer, 0), size);
-		return -EINVAL;
+	pix_format = &isp_dev->capture.format.fmt.pix_mp;
+
+	for (i = 0; i < pix_format->num_planes; ++i) {
+		u32 sizeimage = pix_format->plane_fmt[i].sizeimage;
+
+		if (vb2_plane_size(vb2_buffer, i) < sizeimage) {
+			v4l2_err(v4l2_dev, "buffer too small (%lu < %u)\n",
+				vb2_plane_size(vb2_buffer, i), sizeimage);
+			return -EINVAL;
+		}
+
+		vb2_set_plane_payload(vb2_buffer, i, sizeimage);
 	}
-
-	vb2_set_plane_payload(vb2_buffer, 0, size);
 
 	return 0;
 }
@@ -376,7 +405,7 @@ static const struct vb2_ops sun6i_isp_capture_queue_ops = {
 
 static void sun6i_isp_capture_format_prepare(struct v4l2_format *format)
 {
-	struct v4l2_pix_format *pix_format = &format->fmt.pix;
+	struct v4l2_pix_format_mplane *pix_format = &format->fmt.pix_mp;
 	const struct v4l2_format_info *info;
 	unsigned int width, height;
 	unsigned int width_aligned;
@@ -401,19 +430,21 @@ static void sun6i_isp_capture_format_prepare(struct v4l2_format *format)
 	/* Stride needs to be aligned to 4. */
 	width_aligned = ALIGN(width, 2);
 
-	pix_format->bytesperline = width_aligned * info->bpp[0];
-	pix_format->sizeimage = 0;
-
 	for (i = 0; i < info->comp_planes; i++) {
 		unsigned int hdiv = (i == 0) ? 1 : info->hdiv;
 		unsigned int vdiv = (i == 0) ? 1 : info->vdiv;
 
-		pix_format->sizeimage += info->bpp[i] *
+		pix_format->plane_fmt[i].bytesperline = width_aligned * info->bpp[0];
+		pix_format->plane_fmt[i].sizeimage = info->bpp[i] *
 					 DIV_ROUND_UP(width_aligned, hdiv) *
 					 DIV_ROUND_UP(height, vdiv);
 	}
 
+	if (info->comp_planes == 2 && info->mem_planes == 1)
+		pix_format->plane_fmt[0].sizeimage += pix_format->plane_fmt[1].sizeimage;
+
 	pix_format->field = V4L2_FIELD_NONE;
+	pix_format->num_planes = info->mem_planes;
 
 	pix_format->colorspace = V4L2_COLORSPACE_RAW;
 	pix_format->ycbcr_enc = V4L2_YCBCR_ENC_DEFAULT;
@@ -514,9 +545,9 @@ static const struct v4l2_ioctl_ops sun6i_isp_capture_ioctl_ops = {
 	.vidioc_querycap		= sun6i_isp_capture_querycap,
 
 	.vidioc_enum_fmt_vid_cap	= sun6i_isp_capture_enum_fmt,
-	.vidioc_g_fmt_vid_cap		= sun6i_isp_capture_g_fmt,
-	.vidioc_s_fmt_vid_cap		= sun6i_isp_capture_s_fmt,
-	.vidioc_try_fmt_vid_cap		= sun6i_isp_capture_try_fmt,
+	.vidioc_g_fmt_vid_cap_mplane	= sun6i_isp_capture_g_fmt,
+	.vidioc_s_fmt_vid_cap_mplane	= sun6i_isp_capture_s_fmt,
+	.vidioc_try_fmt_vid_cap_mplane	= sun6i_isp_capture_try_fmt,
 
 	.vidioc_enum_input		= sun6i_isp_capture_enum_input,
 	.vidioc_g_input			= sun6i_isp_capture_g_input,
@@ -631,7 +662,7 @@ int sun6i_isp_capture_setup(struct sun6i_isp_device *isp_dev)
 	struct vb2_queue *queue = &capture->queue;
 	struct media_pad *pad = &capture->pad;
 	struct v4l2_format *format = &capture->format;
-	struct v4l2_pix_format *pix_format = &format->fmt.pix;
+	struct v4l2_pix_format_mplane *pix_format = &format->fmt.pix_mp;
 	int ret;
 
 	/* State */
@@ -655,7 +686,7 @@ int sun6i_isp_capture_setup(struct sun6i_isp_device *isp_dev)
 
 	mutex_init(&capture->lock);
 
-	queue->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+	queue->type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
 	queue->io_modes = VB2_MMAP | VB2_DMABUF;
 	queue->buf_struct_size = sizeof(struct sun6i_isp_buffer);
 	queue->ops = &sun6i_isp_capture_queue_ops;
@@ -685,7 +716,7 @@ int sun6i_isp_capture_setup(struct sun6i_isp_device *isp_dev)
 
 	strscpy(video_dev->name, SUN6I_ISP_CAPTURE_NAME,
 		sizeof(video_dev->name));
-	video_dev->device_caps = V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_STREAMING;
+	video_dev->device_caps = V4L2_CAP_VIDEO_CAPTURE_MPLANE | V4L2_CAP_STREAMING;
 	video_dev->vfl_dir = VFL_DIR_RX;
 	video_dev->release = video_device_release_empty;
 	video_dev->fops = &sun6i_isp_capture_fops;
