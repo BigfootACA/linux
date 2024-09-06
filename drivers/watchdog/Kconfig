@@ -300,6 +300,18 @@ config MENZ069_WATCHDOG
 	  This driver can also be built as a module. If so the module
 	  will be called menz069_wdt.
 
+config PHOTONICAT_PMU_WDT
+	tristate "Photonicat PMU Watchdog"
+	depends on MFD_PHOTONICAT_PMU || COMPILE_TEST
+	select WATCHDOG_CORE
+	help
+	  This driver provides access to Photonicat PMU watchdog functionality.
+
+	  Say Y here to include support for the Photonicat PMU Watchdog.
+
+	  This driver can also be built as a module. If so the module
+	  will be called photonicat-wdt.
+
 config WDAT_WDT
 	tristate "ACPI Watchdog Action Table (WDAT)"
 	depends on ACPI
