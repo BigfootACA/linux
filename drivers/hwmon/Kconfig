@@ -1788,6 +1788,16 @@ config SENSORS_PT5161L
 	  This driver can also be built as a module. If so, the module
 	  will be called pt5161l.
 
+config SENSORS_PHOTONICAT_PMU_HWMON
+	tristate "Photonicat PMU temperature sensor"
+	depends on MFD_PHOTONICAT_PMU || COMPILE_TEST
+	help
+	  If you say yes here you get support for temperature sensor on the
+	  Photonicat PMU.
+
+	  This driver can also be built as a module. If so, the module
+	  will be called photonicat-hwmon.
+
 config SENSORS_PWM_FAN
 	tristate "PWM fan"
 	depends on PWM || COMPILE_TEST
