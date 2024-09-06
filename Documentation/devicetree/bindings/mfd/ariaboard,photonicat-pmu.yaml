@@ -1,0 +1,50 @@
+# SPDX-License-Identifier: (GPL-2.0 OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/mfd/ariaboard,photonicat-pmu.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Ariaboard Photonicat PMU
+
+maintainers:
+  - Junhao Xie <bigfoot@classfun.cn>
+
+description:
+  The Power Management MCU in Ariaboard Photonicat which
+  provides battery and charger power supply real-time clock,
+  watchdog, hardware shutdown, status leds.
+
+$ref: /schemas/power/supply/power-supply.yaml
+
+properties:
+  compatible:
+    const: ariaboard,photonicat-pmu
+
+  current-speed:
+    $ref: /schemas/types.yaml#/definitions/uint32
+    default: 115200
+    description: PMU Serial baudrate
+
+  monitored-battery: true
+
+required:
+  - compatible
+  - monitored-battery
+
+additionalProperties: false
+
+examples:
+  - |
+      battery: battery {
+          compatible = "simple-battery";
+          voltage-max-design-microvolt = <4200000>;
+          voltage-min-design-microvolt = <3400000>;
+      };
+
+      serial {
+          photonicat-pmu {
+              compatible = "ariaboard,photonicat-pmu";
+              current-speed = <115200>;
+              monitored-battery = <&battery>;
+          };
+      };
