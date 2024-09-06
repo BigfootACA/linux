@@ -158,6 +158,18 @@ config POWER_RESET_ODROID_GO_ULTRA_POWEROFF
 	help
 	  This driver supports Power off for Odroid Go Ultra device.
 
+config POWER_RESET_PHOTONICAT_POWEROFF
+	tristate "Photonicat PMU power-off driver"
+	depends on MFD_PHOTONICAT_PMU || COMPILE_TEST
+	help
+	  This driver supports Power off for Photonicat PMU device.
+
+	  Supports operations:
+	    Host notifies PMU to shutdown
+	    PMU notifies host to shutdown
+
+	  Say Y if you have a Photonicat board.
+
 config POWER_RESET_PIIX4_POWEROFF
 	tristate "Intel PIIX4 power-off driver"
 	depends on PCI
