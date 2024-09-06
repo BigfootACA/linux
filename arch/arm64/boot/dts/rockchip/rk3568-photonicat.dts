@@ -531,6 +531,12 @@
 &uart4 {
 	dma-names = "tx", "rx";
 	status = "okay";
+
+	pcat_pmu: mcu {
+		compatible = "ariaboard,photonicat-pmu";
+		current-speed = <115200>;
+		monitored-battery = <&battery>;
+	};
 };
 
 /* M.2 E-Key for USB Bluetooth */
