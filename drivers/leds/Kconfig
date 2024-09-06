@@ -381,6 +381,17 @@ config LEDS_PCA9532_GPIO
 	  To use a pin as gpio pca9532_type in pca9532_platform data needs to
 	  set to PCA9532_TYPE_GPIO.
 
+config LEDS_PHOTONICAT_PMU
+	tristate "LED Support for Photonicat PMU"
+	depends on LEDS_CLASS
+	depends on MFD_PHOTONICAT_PMU || COMPILE_TEST
+	help
+	  Photonicat has a network status LED that can be controlled by system,
+	  this option enables support for LEDs connected to the Photonicat PMU.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called leds-photonicat.
+
 config LEDS_GPIO
 	tristate "LED Support for GPIO connected LEDs"
 	depends on LEDS_CLASS
