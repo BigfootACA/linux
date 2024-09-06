@@ -516,6 +516,18 @@ config RTC_DRV_PCF8583
 	  This driver can also be built as a module. If so, the module
 	  will be called rtc-pcf8583.
 
+config RTC_DRV_PHOTONICAT_PMU
+	tristate "Photonicat PMU RTC"
+	depends on MFD_PHOTONICAT_PMU || COMPILE_TEST
+	help
+	  Photonicat PMU MCU will send status reports regularly,
+	  including the MCU RTC date time.
+
+	  If you say yes here you get support for the Photonicat PMU RTC.
+
+	  This driver can also be built as a module. If so, the module
+	  will be called rtc-photonicat.
+
 config RTC_DRV_M41T80
 	tristate "ST M41T62/65/M41T80/81/82/83/84/85/87 and compatible"
 	help
