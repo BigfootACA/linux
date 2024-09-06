@@ -1147,6 +1147,19 @@ config MFD_PM8XXX
 	  Say M here if you want to include support for PM8xxx chips as a
 	  module. This will build a module called "pm8xxx-core".
 
+config MFD_PHOTONICAT_PMU
+	tristate "Photonicat Power Management MCU"
+	depends on OF
+	depends on SERIAL_DEV_BUS
+	select CRC16
+	select MFD_CORE
+	help
+	  Driver for the Power Management MCU in the Ariaboard Photonicat,
+	  which provides battery and charger power supply, real-time clock,
+	  watchdog, hardware shutdown.
+
+	  Say M or Y here to include this support.
+
 config MFD_QCOM_RPM
 	tristate "Qualcomm Resource Power Manager (RPM)"
 	depends on ARCH_QCOM && OF
