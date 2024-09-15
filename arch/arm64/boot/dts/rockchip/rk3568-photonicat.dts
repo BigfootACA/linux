@@ -231,6 +231,13 @@
 		post-power-on-delay-ms = <200>;
 		reset-gpios = <&gpio2 RK_PB1 GPIO_ACTIVE_LOW>;
 	};
+
+	gmac0_xpcsclk: xpcs-gmac0-clock {
+		compatible = "fixed-clock";
+		clock-frequency = <125000000>;
+		clock-output-names = "clk_gmac0_xpcs_mii";
+		#clock-cells = <0>;
+	};
 };
 
 &combphy0 {
@@ -263,7 +270,23 @@
 
 /* Motorcomm YT8521SC LAN port (require SGMII) */
 &gmac0 {
-	status = "disabled";
+	assigned-clocks = <&cru SCLK_GMAC0_RX_TX>;
+	assigned-clock-parents = <&gmac0_xpcsclk>;
+	clock_in_out = "input";
+	power-domains = <&power RK3568_PD_PIPE>;
+	phys = <&combphy2 PHY_TYPE_SGMII>;
+	phy-handle = <&sgmii_phy0>;
+	phy-mode = "sgmii";
+	phy-supply = <&vcc_3v3>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&gmac0_miim>;
+	rockchip,xpcs = <&xpcs>;
+	snps,reset-gpio = <&gpio3 RK_PC6 GPIO_ACTIVE_LOW>;
+	snps,reset-active-low;
+	snps,reset-delays-us = <0 20000 100000>;
+	tx_delay = <0>;
+	rx_delay = <0>;
+	status = "okay";
 };
 
 /* Motorcomm YT8521SC WAN port */
@@ -342,6 +365,13 @@
 	status = "okay";
 };
 
+&mdio0 {
+	sgmii_phy0: ethernet-phy@0 {
+		compatible = "ethernet-phy-ieee802.3-c22";
+		reg = <0x0>;
+	};
+};
+
 &mdio1 {
 	rgmii_phy1: ethernet-phy@0 {
 		compatible = "ethernet-phy-ieee802.3-c22";
@@ -380,7 +410,7 @@
 	};
 
 	ethernet {
-		eth1_phy_rst: eth1-phy-rst {
+		eth1_phy_rst: eth1_phy_rst {
 			rockchip,pins = <4 RK_PC0 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
@@ -603,4 +633,8 @@
 &xin32k {
 	pinctrl-names = "default";
 	pinctrl-0 = <&clk32k_out1>;
+};
+
+&xpcs {
+	status = "okay";
 };
