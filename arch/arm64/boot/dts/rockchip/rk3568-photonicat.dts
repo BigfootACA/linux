@@ -40,6 +40,13 @@
 		stdout-path = "serial2:1500000n8";
 	};
 
+	firmware {
+		optee: optee {
+			compatible = "linaro,optee-tz";
+			method = "smc";
+		};
+	};
+
 	hdmi_con: hdmi-con {
 		compatible = "hdmi-connector";
 		type = "a";
@@ -212,6 +219,21 @@
 		regulator-max-microvolt = <1350000>;
 		regulator-ramp-delay = <6001>;
 		regulator-settling-time-up-us = <250>;
+	};
+
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		ramoops: ramoops@110000 {
+			compatible = "ramoops";
+			reg = <0 0x110000 0 0xf0000>;
+			console-size = <0x80000>;
+			ftrace-size = <0x00000>;
+			pmsg-size = <0x50000>;
+			record-size = <0x20000>;
+		};
 	};
 
 	rfkill-modem {
@@ -455,6 +477,17 @@
 	vccio6-supply = <&vcc_3v3>;
 	vccio7-supply = <&vcc_3v3>;
 	status = "okay";
+};
+
+&pmugrf {
+	reboot-mode {
+		compatible = "syscon-reboot-mode";
+		offset = <0x200>;
+		mode-normal = <BOOT_NORMAL>;
+		mode-loader = <BOOT_BL_DOWNLOAD>;
+		mode-recovery = <BOOT_RECOVERY>;
+		mode-bootloader = <BOOT_FASTBOOT>;
+	};
 };
 
 &pwm1 {
