@@ -326,6 +326,8 @@
 		     &gmac1m1_rx_bus2
 		     &gmac1m1_rgmii_clk
 		     &gmac1m1_rgmii_bus>;
+	tx_delay = <0>;
+	rx_delay = <0>;
 	status = "okay";
 };
 
