@@ -1,0 +1,36 @@
+// SPDX-License-Identifier: (GPL-2.0+ or MIT)
+/*
+ * Copyright (C) 2023 BigfootACA <bigfoot@classfun.cn>.
+ */
+
+/dts-v1/;
+
+#include "sun50i-h616.dtsi"
+#include "sun50i-h616-cpu-opp.dtsi"
+#include "sun50i-h616-yuzuki-chameleon-base.dtsi"
+
+/ {
+	model = "Yuzuki Chameleon";
+	compatible = "yuzuki,chameleon", "allwinner,sun50i-h616";
+
+};
+
+/* XRadio XR829 WiFi */
+&mmc1 {
+	status = "okay";
+
+	xr829: sdio_wifi@1 {
+		reg = <1>;
+		compatible = "xradio,xr829";
+		pinctrl-names = "default";
+		pinctrl-0 = <&wifi_wake>;
+		interrupt-parent = <&pio>;
+		interrupts = <6 12 IRQ_TYPE_EDGE_RISING>; /* PG12 */
+		interrupt-names = "host-wake";
+	};
+};
+
+/* XRadio XR829 Bluetooth */
+&uart1 {
+	status = "okay";
+};
