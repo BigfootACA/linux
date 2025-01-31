@@ -152,10 +152,14 @@ static int sunxi_de33_clk_probe(struct platform_device *pdev)
 	writel(0, reg + 0x24);
 	writel(0x0000A980, reg + 0x28);
 
-	of_sunxi_ccu_probe(pdev->dev.of_node, reg, ccu_desc);
+	ret = devm_sunxi_ccu_probe(&pdev->dev, reg, ccu_desc);
+	if (ret)
+		goto err_assert_reset;
 
 	return 0;
 
+err_assert_reset:
+	reset_control_assert(rstc);
 err_disable_mod_clk:
 	clk_disable_unprepare(mod_clk);
 err_disable_bus_clk:
@@ -170,6 +174,7 @@ static const struct of_device_id sunxi_de33_clk_ids[] = {
 	},
 	{ }
 };
+MODULE_DEVICE_TABLE(of, sunxi_de33_clk_ids);
 
 static struct platform_driver sunxi_de33_clk_driver = {
 	.probe	= sunxi_de33_clk_probe,
@@ -178,4 +183,8 @@ static struct platform_driver sunxi_de33_clk_driver = {
 		.of_match_table	= sunxi_de33_clk_ids,
 	},
 };
-builtin_platform_driver(sunxi_de33_clk_driver);
+module_platform_driver(sunxi_de33_clk_driver);
+
+MODULE_IMPORT_NS("SUNXI_CCU");
+MODULE_DESCRIPTION("Support for the Allwinner SoCs DE33 CCU");
+MODULE_LICENSE("GPL");
