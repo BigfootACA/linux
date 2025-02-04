@@ -5,11 +5,12 @@
 
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/interrupt-controller/arm-gic.h>
+#include "sun50i-h616-ac300-ethernet.dtsi"
 
 / {
 	aliases {
 		serial0 = &uart0;
-		ethernet0 = &emac0;
+		ethernet0 = &emac1;
 	};
 
 	chosen {
@@ -71,15 +72,8 @@
 	status = "okay";
 };
 
-&emac0 {
-	pinctrl-names = "default";
-	pinctrl-0 = <&ext_rgmii_pins>;
-	phy-mode = "rgmii";
-	phy-handle = <&ext_rgmii_phy>;
-	allwinner,rx-delay-ps = <3100>;
-	allwinner,tx-delay-ps = <700>;
+&emac1 {
 	phy-supply = <&reg_dldo1>;
-	status = "okay";
 };
 
 &hdmi {
@@ -89,13 +83,6 @@
 &hdmi_out {
 	hdmi_out_con: endpoint {
 		remote-endpoint = <&hdmi_con_in>;
-	};
-};
-
-&mdio0 {
-	ext_rgmii_phy: ethernet-phy@1 {
-		compatible = "ethernet-phy-ieee802.3-c22";
-		reg = <1>;
 	};
 };
 
