@@ -1,0 +1,84 @@
+
+/ {
+	soc {
+		pwm: pwm@300a000 {
+			compatible = "allwinner,sun50i-h616-pwm";
+			reg = <0x0300a000 0x400>;
+			clocks = <&ccu CLK_BUS_PWM>, <&osc24M>, <&ccu CLK_APB1>;
+			clock-names = "bus", "hosc", "apb";
+			resets = <&ccu RST_BUS_PWM>;
+			#pwm-cells = <0x3>;
+		};
+
+		emac1: ethernet@5030000 {
+			compatible = "allwinner,sun50i-h616-emac1";
+			reg = <0x05030000 0x10000>;
+			interrupts = <GIC_SPI 15 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "macirq";
+			clocks = <&ccu CLK_BUS_EMAC1>;
+			clock-names = "stmmaceth";
+			resets = <&ccu RST_BUS_EMAC1>;
+			reset-names = "stmmaceth";
+			syscon = <&syscon>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&int_rmii_pins>;
+			phy-mode = "rmii";
+			phy-handle = <&ac300_phy>;
+			allwinner,rx-delay-ps = <3100>;
+			allwinner,tx-delay-ps = <700>;
+			phy-supply = <&reg_dldo1>;
+
+			mdio1: mdio {
+				compatible = "snps,dwmac-mdio";
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				ac300_phy: ethernet-phy@0 {
+					compatible = "ethernet-phy-id0044.1400",
+						     "ethernet-phy-ieee802.3-c22";
+					reg = <0>;
+					phy-top-handle = <&ac300_top>;
+				};
+
+				ac300_top: ethernet-top@10 {
+					compatible = "ethernet-phy-idc000.0000",
+						     "ethernet-phy-ieee802.3-c22";
+					reg = <0x10>;
+					clocks = <&ac300_pwm_clk>;
+					clock-name = "phy";
+					nvmem-cells = <&ac300_calibration>;
+					nvmem-cell-names = "calibration";
+				};
+			};
+		};
+	};
+
+	ac300_pwm_clk: ac300-clk {
+		compatible = "pwm-clock";
+		#clock-cells = <0>;
+		clock-frequency = <24000000>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pwm5_pin>;
+		pwms = <&pwm 5 42 0>;
+	};
+};
+
+&pio {
+	int_rmii_pins: rmii-pins {
+		pins = "PA0", "PA1", "PA2", "PA3", "PA4",
+		       "PA5", "PA6", "PA7", "PA8", "PA9";
+		function = "emac1";
+		drive-strength = <40>;
+	};
+
+	pwm5_pin: pwm5-pin {
+		pins = "PA12";
+		function = "pwm5";
+	};
+};
+
+&sid {
+	ac300_calibration: ac300-calibration@2c {
+		reg = <0x2c 0x2>;
+	};
+};
