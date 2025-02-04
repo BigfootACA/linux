@@ -78,6 +78,14 @@ config SFP
 
 comment "MII PHY device drivers"
 
+config AC300_PHY
+	tristate "X-Powers AC300 EPHY"
+	depends on NVMEM
+	depends on OF
+	help
+	  Fast ethernet PHY as found in X-Powers AC300.
+	  Currently supports the Allwinner H616.
+
 config AS21XXX_PHY
 	tristate "Aeonsemi AS21xxx PHYs"
 	help
