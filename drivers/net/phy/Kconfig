@@ -79,6 +79,14 @@ config SFP
 
 comment "MII PHY device drivers"
 
+config AC300_PHY
+	tristate "X-Powers AC300 EPHY"
+	depends on NVMEM
+	depends on OF
+	help
+	  Fast ethernet PHY as found in X-Powers AC300.
+	  Currently supports the Allwinner H616.
+
 config AIR_EN8811H_PHY
 	tristate "Airoha EN8811H 2.5 Gigabit PHY"
 	help
