@@ -81,6 +81,13 @@ static const struct reg_field sun8i_syscon_reg_field = {
 	.msb = 31,
 };
 
+/* EMAC clock register @ 0x34 in the "system control" address range */
+static const struct reg_field sun8i_syscon_reg_2_field = {
+	.reg = 0x34,
+	.lsb = 0,
+	.msb = 31,
+};
+
 /* EMAC clock register @ 0x164 in the CCU address range */
 static const struct reg_field sun8i_ccu_reg_field = {
 	.reg = 0x164,
@@ -139,6 +146,13 @@ static const struct emac_variant emac_variant_h6 = {
 	.support_mii = true,
 	.support_rmii = true,
 	.support_rgmii = true,
+	.rx_delay_max = 31,
+	.tx_delay_max = 7,
+};
+
+static const struct emac_variant emac_variant_h616_1 = {
+	.syscon_field = &sun8i_syscon_reg_2_field,
+	.support_rmii = true,
 	.rx_delay_max = 31,
 	.tx_delay_max = 7,
 };
@@ -1278,6 +1292,8 @@ static const struct of_device_id sun8i_dwmac_match[] = {
 		.data = &emac_variant_a64 },
 	{ .compatible = "allwinner,sun50i-h6-emac",
 		.data = &emac_variant_h6 },
+	{ .compatible = "allwinner,sun50i-h616-emac1",
+		.data = &emac_variant_h616_1 },
 	{ }
 };
 MODULE_DEVICE_TABLE(of, sun8i_dwmac_match);
