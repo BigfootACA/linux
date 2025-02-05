@@ -2,7 +2,7 @@
 # Maintainer: Thomas Weißschuh <linux@weissschuh.net>
 # Contributor: Jan Alexander Steffens (heftig) <heftig@archlinux.org>
 
-pkgbase=${PACMAN_PKGBASE:-linux-upstream}
+pkgbase=linux-mainline-aarch64
 pkgname=("${pkgbase}")
 
 _extrapackages=${PACMAN_EXTRAPACKAGES-headers api-headers debug}
@@ -10,12 +10,12 @@ for pkg in $_extrapackages; do
 	pkgname+=("${pkgbase}-${pkg}")
 done
 
-pkgver="${KERNELRELEASE//-/_}"
+pkgver="6.13"
 # The PKGBUILD is evaluated multiple times.
 # Running scripts/build-version from here would introduce inconsistencies.
-pkgrel="${KBUILD_REVISION}"
-pkgdesc='Upstream Linux'
-url='https://www.kernel.org/'
+pkgrel="1"
+pkgdesc='The Linux Kernel and modules - AArch64 multi-platform'
+url='https://github.com/BigfootACA/linux'
 # Enable flexible cross-compilation
 arch=(${CARCH})
 license=(GPL-2.0-only)
@@ -49,10 +49,14 @@ build() {
 	_prologue
 
 	${MAKE} KERNELRELEASE="${KERNELRELEASE}" KBUILD_BUILD_VERSION="${pkgrel}"
+	${MAKE} KERNELRELEASE="${KERNELRELEASE}" KBUILD_BUILD_VERSION="${pkgrel}" Image.gz
 }
 
 _package() {
-	pkgdesc="The ${pkgdesc} kernel and modules"
+	pkgdesc="The Linux kernel and modules - AArch64 multi-platform"
+	provides=(linux=6.13 linux-aarch64=6.13 KSMBD-MODULE WIREGUARD-MODULE)
+	conflicts=(linux linux-aarch64)
+	depends=(mkinitcpio)
 
 	local modulesdir="${pkgdir}/usr/${MODLIB}"
 
@@ -61,7 +65,8 @@ _package() {
 	echo "Installing boot image..."
 	# systemd expects to find the kernel here to allow hibernation
 	# https://github.com/systemd/systemd/commit/edda44605f06a41fb86b7ab8128dcf99161d2344
-	install -Dm644 "$(${MAKE} -s image_name)" "${modulesdir}/vmlinuz"
+	install -Dm644 arch/arm64/boot/Image "${modulesdir}/vmlinuz"
+	install -Dm644 arch/arm64/boot/vmlinuz.efi "${modulesdir}/vmlinuz.efi"
 
 	# Used by mkinitcpio to name the kernel
 	echo "${pkgbase}" > "${modulesdir}/pkgbase"
@@ -80,7 +85,7 @@ _package() {
 }
 
 _package-headers() {
-	pkgdesc="Headers and scripts for building modules for the ${pkgdesc} kernel"
+	pkgdesc="Header files and scripts for building modules for linux kernel - AArch64 multi-platform"
 
 	local builddir="${pkgdir}/usr/${MODLIB}/build"
 
@@ -112,7 +117,7 @@ _package-api-headers() {
 }
 
 _package-debug(){
-	pkgdesc="Non-stripped vmlinux file for the ${pkgdesc} kernel"
+	pkgdesc="Non-stripped vmlinux file for the linux kernel - AArch64 multi-platform"
 
 	local debugdir="${pkgdir}/usr/src/debug/${pkgbase}"
 	local builddir="${pkgdir}/usr/${MODLIB}/build"
