@@ -76,6 +76,11 @@
 	phy-supply = <&reg_dldo1>;
 };
 
+&gpu {
+	mali-supply = <&reg_dcdc1>;
+	status = "okay";
+};
+
 &hdmi {
 	status = "okay";
 };
@@ -133,7 +138,7 @@
 			reg_dcdc1: dcdc1 {
 				regulator-name = "vdd-gpu-sys";
 				regulator-min-microvolt = <810000>;
-				regulator-max-microvolt = <990000>;
+				regulator-max-microvolt = <1080000>;
 				regulator-always-on;
 			};
 
