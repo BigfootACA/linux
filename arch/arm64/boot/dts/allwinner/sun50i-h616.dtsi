@@ -235,6 +235,7 @@
 			interrupt-names = "job", "mmu", "gpu";
 			clocks = <&ccu CLK_GPU0>, <&ccu CLK_BUS_GPU>;
 			clock-names = "core", "bus";
+			power-domains = <&pd_gpu 0>;
 			resets = <&ccu RST_BUS_GPU>;
 			status = "disabled";
 		};
@@ -1111,6 +1112,12 @@
 			clock-names = "hosc", "losc", "iosc", "pll-periph";
 			#clock-cells = <1>;
 			#reset-cells = <1>;
+		};
+
+		pd_gpu: gpu-power-domain@7010254 {
+			compatible = "allwinner,sun50i-h616-gpu-pd";
+			reg = <0x07010254 0x4>;
+			#power-domain-cells = <1>;
 		};
 
 		nmi_intc: interrupt-controller@7010320 {
