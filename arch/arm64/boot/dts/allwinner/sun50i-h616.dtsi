@@ -240,6 +240,11 @@
 				#address-cells = <1>;
 				#size-cells = <1>;
 				ranges = <0 0x01a00000 0x200000>;
+
+				ve_sram: sram-section@0 {
+					compatible = "allwinner,sun50i-h616-sram-c1";
+					reg = <0x000000 0x200000>;
+				};
 			};
 		};
 
