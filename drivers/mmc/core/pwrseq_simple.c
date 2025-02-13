@@ -126,6 +126,7 @@ static int mmc_pwrseq_simple_probe(struct platform_device *pdev)
 	struct mmc_pwrseq_simple *pwrseq;
 	struct device *dev = &pdev->dev;
 	int ngpio;
+	int ret;
 
 	pwrseq = devm_kzalloc(dev, sizeof(*pwrseq), GFP_KERNEL);
 	if (!pwrseq)
@@ -138,9 +139,14 @@ static int mmc_pwrseq_simple_probe(struct platform_device *pdev)
 	ngpio = of_count_phandle_with_args(dev->of_node, "reset-gpios", "#gpio-cells");
 	if (ngpio == 1) {
 		pwrseq->reset_ctrl = devm_reset_control_get_optional_shared(dev, NULL);
-		if (IS_ERR(pwrseq->reset_ctrl))
-			return dev_err_probe(dev, PTR_ERR(pwrseq->reset_ctrl),
-					     "reset control not ready\n");
+		if (IS_ERR(pwrseq->reset_ctrl)) {
+			ret = PTR_ERR(pwrseq->reset_ctrl);
+			if (ret == -ENOENT || ret == -ENOSYS)
+				pwrseq->reset_ctrl = NULL;
+			else
+				return dev_err_probe(dev, ret,
+						     "reset control not ready\n");
+		}
 	}
 
 	/*
