@@ -125,6 +125,7 @@ enum dp_irq_type {
 
 struct video_info {
 	char *name;
+	struct drm_display_mode mode;
 
 	bool h_sync_polarity;
 	bool v_sync_polarity;
@@ -146,6 +147,7 @@ struct link_train {
 	u8 link_rate;
 	u8 lane_count;
 	u8 training_lane[4];
+	bool ssc;
 
 	enum link_training_state lt_state;
 };
@@ -230,5 +232,7 @@ int analogix_dp_send_psr_spd(struct analogix_dp_device *dp,
 			     struct dp_sdp *vsc, bool blocking);
 ssize_t analogix_dp_transfer(struct analogix_dp_device *dp,
 			     struct drm_dp_aux_msg *msg);
+void analogix_dp_set_video_format(struct analogix_dp_device *dp);
+bool analogix_dp_ssc_supported(struct analogix_dp_device *dp);
 
 #endif /* _ANALOGIX_DP_CORE_H */

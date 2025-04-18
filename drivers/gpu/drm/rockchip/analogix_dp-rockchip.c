@@ -17,6 +17,7 @@
 #include <linux/regmap.h>
 #include <linux/reset.h>
 #include <linux/clk.h>
+#include <linux/media-bus-format.h>
 
 #include <video/of_videomode.h>
 #include <video/videomode.h>
@@ -62,6 +63,7 @@ struct rockchip_dp_chip_data {
 	const struct rockchip_grf_reg_field edp_mode;
 	u32	chip_type;
 	u32	reg;
+	bool    ssc;
 };
 
 struct rockchip_dp_device {
@@ -238,6 +240,9 @@ static void rockchip_dp_drm_encoder_enable(struct drm_encoder *encoder,
 	if (old_crtc_state && old_crtc_state->self_refresh_active)
 		return;
 
+	if (!dp->data->lcdc_sel.valid)
+		return;
+
 	ret = clk_prepare_enable(dp->grfclk);
 	if (ret < 0) {
 		DRM_DEV_ERROR(dp->dev, "failed to enable grfclk %d\n", ret);
@@ -302,6 +307,11 @@ rockchip_dp_drm_encoder_atomic_check(struct drm_encoder *encoder,
 	struct rockchip_crtc_state *s = to_rockchip_crtc_state(crtc_state);
 	struct drm_display_info *di = &conn_state->connector->display_info;
 
+	if (di->num_bus_formats)
+		s->bus_format = di->bus_formats[0];
+	else
+		s->bus_format = MEDIA_BUS_FMT_RGB888_1X24;
+
 	/*
 	 * The hardware IC designed that VOP must output the RGB10 video
 	 * format to eDP controller, and if eDP panel only support RGB8,
@@ -330,10 +340,12 @@ static int rockchip_dp_of_probe(struct rockchip_dp_device *dp)
 	struct device *dev = dp->dev;
 	struct device_node *np = dev->of_node;
 
-	dp->grf = syscon_regmap_lookup_by_phandle(np, "rockchip,grf");
-	if (IS_ERR(dp->grf))
-		return dev_err_probe(dev, PTR_ERR(dp->grf),
-				     "failed to get rockchip,grf property\n");
+	if (of_property_read_bool(np, "rockchip,grf")) {
+		dp->grf = syscon_regmap_lookup_by_phandle(np, "rockchip,grf");
+		if (IS_ERR(dp->grf))
+			return dev_err_probe(dev, PTR_ERR(dp->grf),
+					     "failed to get rockchip,grf property\n");
+	}
 
 	dp->grfclk = devm_clk_get_optional(dev, "grf");
 	if (IS_ERR(dp->grfclk))
@@ -478,6 +490,7 @@ static int rockchip_dp_probe(struct platform_device *pdev)
 
 	dp->dev = dev;
 	dp->adp = ERR_PTR(-ENODEV);
+	dp->plat_data.ssc = dp->data->ssc;
 	dp->plat_data.dev_type = dp->data->chip_type;
 	dp->plat_data.power_on = rockchip_dp_poweron;
 	dp->plat_data.power_off = rockchip_dp_powerdown;
@@ -544,6 +557,7 @@ static const struct rockchip_dp_chip_data rk3399_edp[] = {
 		.lcdc_sel = GRF_REG_FIELD(0x6250, 5, 5),
 		.chip_type = RK3399_EDP,
 		.reg = 0xff970000,
+		.ssc = true,
 	},
 	{ /* sentinel */ }
 };
@@ -553,6 +567,16 @@ static const struct rockchip_dp_chip_data rk3288_dp[] = {
 		.lcdc_sel = GRF_REG_FIELD(0x025c, 5, 5),
 		.chip_type = RK3288_DP,
 		.reg = 0xff970000,
+		.ssc = true,
+	},
+	{ /* sentinel */ }
+};
+
+static const struct rockchip_dp_chip_data rk3568_edp[] = {
+	{
+		.chip_type = RK3568_EDP,
+		.reg = 0xfe0c0000,
+		.ssc = true,
 	},
 	{ /* sentinel */ }
 };
@@ -574,6 +598,7 @@ static const struct rockchip_dp_chip_data rk3588_edp[] = {
 static const struct of_device_id rockchip_dp_dt_ids[] = {
 	{.compatible = "rockchip,rk3288-dp", .data = &rk3288_dp },
 	{.compatible = "rockchip,rk3399-edp", .data = &rk3399_edp },
+	{.compatible = "rockchip,rk3568-edp", .data = &rk3568_edp },
 	{.compatible = "rockchip,rk3588-edp", .data = &rk3588_edp },
 	{}
 };

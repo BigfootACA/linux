@@ -78,10 +78,11 @@ void analogix_dp_init_analog_param(struct analogix_dp_device *dp)
 			reg ^= REF_CLK_MASK;
 
 		writel(reg, dp->reg_base + ANALOGIX_DP_PLL_REG_1);
-		writel(0x95, dp->reg_base + ANALOGIX_DP_PLL_REG_2);
+		writel(0x99, dp->reg_base + ANALOGIX_DP_PLL_REG_2);
 		writel(0x40, dp->reg_base + ANALOGIX_DP_PLL_REG_3);
 		writel(0x58, dp->reg_base + ANALOGIX_DP_PLL_REG_4);
 		writel(0x22, dp->reg_base + ANALOGIX_DP_PLL_REG_5);
+		writel(0x44, dp->reg_base + ANALOGIX_DP_BIAS);
 	}
 
 	reg = DRIVE_DVDD_BIT_1_0625V | VCO_BIT_600_MICRO;
@@ -511,6 +512,37 @@ void analogix_dp_enable_sw_function(struct analogix_dp_device *dp)
 	writel(reg, dp->reg_base + ANALOGIX_DP_FUNC_EN_1);
 }
 
+static void analogix_dp_ssc_enable(struct analogix_dp_device *dp)
+{
+       u32 reg;
+
+       /* 4500ppm */
+       writel(0x19, dp->reg_base + ANALOIGX_DP_SSC_REG);
+       /*
+        * To apply updated SSC parameters into SSC operation,
+        * firmware must disable and enable this bit.
+        */
+       reg = readl(dp->reg_base + ANALOGIX_DP_FUNC_EN_2);
+       reg |= SSC_FUNC_EN_N;
+       writel(reg, dp->reg_base + ANALOGIX_DP_FUNC_EN_2);
+       reg &= ~SSC_FUNC_EN_N;
+       writel(reg, dp->reg_base + ANALOGIX_DP_FUNC_EN_2);
+}
+
+static void analogix_dp_ssc_disable(struct analogix_dp_device *dp)
+{
+       u32 reg;
+
+       reg = readl(dp->reg_base + ANALOGIX_DP_FUNC_EN_2);
+       reg |= SSC_FUNC_EN_N;
+       writel(reg, dp->reg_base + ANALOGIX_DP_FUNC_EN_2);
+}
+bool analogix_dp_ssc_supported(struct analogix_dp_device *dp)
+{
+	/* Check if SSC is supported by both sides */
+	return dp->plat_data->ssc && dp->link_train.ssc;
+}
+
 void analogix_dp_set_link_bandwidth(struct analogix_dp_device *dp, u32 bwtype)
 {
 	u32 reg;
@@ -523,14 +555,23 @@ void analogix_dp_set_link_bandwidth(struct analogix_dp_device *dp, u32 bwtype)
 	if (dp->phy) {
 		union phy_configure_opts phy_cfg = {0};
 
+		phy_cfg.dp.lanes = dp->link_train.lane_count;
 		phy_cfg.dp.link_rate =
 			drm_dp_bw_code_to_link_rate(dp->link_train.link_rate) / 100;
+		phy_cfg.dp.ssc = analogix_dp_ssc_supported(dp);
+		phy_cfg.dp.set_lanes = false;
 		phy_cfg.dp.set_rate = true;
+		phy_cfg.dp.set_voltages = false;
 		ret = phy_configure(dp->phy, &phy_cfg);
 		if (ret && ret != -EOPNOTSUPP) {
 			dev_err(dp->dev, "%s: phy_configure() failed: %d\n", __func__, ret);
 			return;
 		}
+	} else {
+		if (analogix_dp_ssc_supported(dp))
+			analogix_dp_ssc_enable(dp);
+		else
+			analogix_dp_ssc_disable(dp);
 	}
 }
 
@@ -555,6 +596,8 @@ void analogix_dp_set_lane_count(struct analogix_dp_device *dp, u32 count)
 
 		phy_cfg.dp.lanes = dp->link_train.lane_count;
 		phy_cfg.dp.set_lanes = true;
+		phy_cfg.dp.set_rate = false;
+		phy_cfg.dp.set_voltages = false;
 		ret = phy_configure(dp->phy, &phy_cfg);
 		if (ret && ret != -EOPNOTSUPP) {
 			dev_err(dp->dev, "%s: phy_configure() failed: %d\n", __func__, ret);
@@ -595,6 +638,9 @@ void analogix_dp_set_lane_link_training(struct analogix_dp_device *dp)
 			phy_cfg.dp.pre[lane] = pe;
 		}
 
+		phy_cfg.dp.lanes = dp->link_train.lane_count;
+		phy_cfg.dp.set_lanes = false;
+		phy_cfg.dp.set_rate = false;
 		phy_cfg.dp.set_voltages = true;
 		ret = phy_configure(dp->phy, &phy_cfg);
 		if (ret && ret != -EOPNOTSUPP) {
@@ -1104,4 +1150,54 @@ aux_error:
 	analogix_dp_init_aux(dp);
 
 	return -EREMOTEIO;
+}
+
+void analogix_dp_set_video_format(struct analogix_dp_device *dp)
+{
+	struct video_info *video = &dp->video_info;
+	const struct drm_display_mode *mode = &video->mode;
+	unsigned int hsw, hfp, hbp, vsw, vfp, vbp;
+
+	hsw = mode->hsync_end - mode->hsync_start;
+	hfp = mode->hsync_start - mode->hdisplay;
+	hbp = mode->htotal - mode->hsync_end;
+	vsw = mode->vsync_end - mode->vsync_start;
+	vfp = mode->vsync_start - mode->vdisplay;
+	vbp = mode->vtotal - mode->vsync_end;
+
+	/* Set Video Format Parameters */
+	writel(TOTAL_LINE_CFG_L(mode->vtotal),
+	       dp->reg_base + ANALOGIX_DP_TOTAL_LINE_CFG_L);
+	writel(TOTAL_LINE_CFG_H(mode->vtotal >> 8),
+	       dp->reg_base + ANALOGIX_DP_TOTAL_LINE_CFG_H);
+	writel(ACTIVE_LINE_CFG_L(mode->vdisplay),
+	       dp->reg_base + ANALOGIX_DP_ACTIVE_LINE_CFG_L);
+	writel(ACTIVE_LINE_CFG_H(mode->vdisplay >> 8),
+	       dp->reg_base + ANALOGIX_DP_ACTIVE_LINE_CFG_H);
+	writel(V_F_PORCH_CFG(vfp),
+	       dp->reg_base + ANALOGIX_DP_V_F_PORCH_CFG);
+	writel(V_SYNC_WIDTH_CFG(vsw),
+	       dp->reg_base + ANALOGIX_DP_V_SYNC_WIDTH_CFG);
+	writel(V_B_PORCH_CFG(vbp),
+	       dp->reg_base + ANALOGIX_DP_V_B_PORCH_CFG);
+	writel(TOTAL_PIXEL_CFG_L(mode->htotal),
+	       dp->reg_base + ANALOGIX_DP_TOTAL_PIXEL_CFG_L);
+	writel(TOTAL_PIXEL_CFG_H(mode->htotal >> 8),
+	       dp->reg_base + ANALOGIX_DP_TOTAL_PIXEL_CFG_H);
+	writel(ACTIVE_PIXEL_CFG_L(mode->hdisplay),
+	       dp->reg_base + ANALOGIX_DP_ACTIVE_PIXEL_CFG_L);
+	writel(ACTIVE_PIXEL_CFG_H(mode->hdisplay >> 8),
+	       dp->reg_base + ANALOGIX_DP_ACTIVE_PIXEL_CFG_H);
+	writel(H_F_PORCH_CFG_L(hfp),
+	       dp->reg_base + ANALOGIX_DP_H_F_PORCH_CFG_L);
+	writel(H_F_PORCH_CFG_H(hfp >> 8),
+	       dp->reg_base + ANALOGIX_DP_H_F_PORCH_CFG_H);
+	writel(H_SYNC_CFG_L(hsw),
+	       dp->reg_base + ANALOGIX_DP_H_SYNC_CFG_L);
+	writel(H_SYNC_CFG_H(hsw >> 8),
+	       dp->reg_base + ANALOGIX_DP_H_SYNC_CFG_H);
+	writel(H_B_PORCH_CFG_L(hbp),
+	       dp->reg_base + ANALOGIX_DP_H_B_PORCH_CFG_L);
+	writel(H_B_PORCH_CFG_H(hbp >> 8),
+	       dp->reg_base + ANALOGIX_DP_H_B_PORCH_CFG_H);
 }
