@@ -1855,6 +1855,14 @@ static const struct panel_delay delay_200_500_e50_po2e200 = {
 	.powered_on_to_enable = 200,
 };
 
+static const struct panel_delay delay_200_500_e50_po2e100_d200 = {
+	.hpd_absent = 200,
+	.unprepare = 500,
+	.enable = 50,
+	.prepare_to_enable = 100,
+	.disable = 200,
+};
+
 static const struct panel_delay delay_200_150_e50 = {
 	.hpd_absent = 200,
 	.unprepare = 150,
@@ -2106,6 +2114,7 @@ static const struct edp_panel_entry edp_panels[] = {
 	EDP_PANEL_ENTRY('K', 'D', 'C', 0x0397, &delay_200_500_e50, "KD116N3730A12"),
 	EDP_PANEL_ENTRY('K', 'D', 'C', 0x044f, &delay_200_500_e50, "KD116N9-30NH-F3"),
 	EDP_PANEL_ENTRY('K', 'D', 'C', 0x05f1, &delay_200_500_e80_d50, "KD116N5-30NV-G7"),
+	EDP_PANEL_ENTRY('K', 'D', 'C', 0x0802, &delay_200_500_e50_po2e100_d200, "KD140N1930A02"),
 	EDP_PANEL_ENTRY('K', 'D', 'C', 0x0809, &delay_200_500_e50, "KD116N2930A15"),
 	EDP_PANEL_ENTRY('K', 'D', 'C', 0x1220, &delay_200_500_e50, "KD116N3730A05"),
 
