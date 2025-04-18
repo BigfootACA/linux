@@ -14,6 +14,11 @@
 	model = "Yuzuki Chameleon";
 	compatible = "yuzuki,chameleon", "allwinner,sun50i-h616";
 
+	wifi_clk: wifi-clk {
+		compatible = "fixed-clock";
+		clock-frequency = <40000000>;
+		#clock-cells = <0>;
+	};
 };
 
 /* XRadio XR829 WiFi */
@@ -28,10 +33,20 @@
 		interrupt-parent = <&pio>;
 		interrupts = <6 12 IRQ_TYPE_EDGE_RISING>; /* PG12 */
 		interrupt-names = "host-wake";
+		vbat-supply = <&reg_dldo1>;
+		vddio-supply = <&reg_dldo1>;
 	};
 };
 
 /* XRadio XR829 Bluetooth */
 &uart1 {
 	status = "okay";
+
+	aic8800_bt: bluetooth {
+		compatible = "xradio,xr829-bt";
+		clocks = <&wifi_clk>;
+		clock-names = "default";
+		vbat-supply = <&reg_dldo1>;
+		vddio-supply = <&reg_dldo1>;
+	};
 };

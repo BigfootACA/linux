@@ -13,14 +13,42 @@
 / {
 	model = "Avaota C2";
 	compatible = "avaota-c2", "allwinner,sun50i-h618", "allwinner,sun50i-h616";
+
+	wifi_clk: wifi-clk {
+		compatible = "fixed-clock";
+		clock-frequency = <26000000>;
+		#clock-cells = <0>;
+	};
 };
 
 /* AICSemi AIC8800 WiFi */
 &mmc1 {
 	status = "okay";
+
+	aic8800: wifi@1 {
+		reg = <1>;
+		compatible = "aicsemi,aic8800";
+		clocks = <&wifi_clk>;
+		clock-names = "default";
+		pinctrl-names = "default";
+		pinctrl-0 = <&wifi_wake>;
+		interrupt-parent = <&pio>;
+		interrupts = <6 12 IRQ_TYPE_EDGE_RISING>; /* PG12 */
+		interrupt-names = "host-wake";
+		vbat-supply = <&reg_dldo1>;
+		vddio-supply = <&reg_dldo1>;
+	};
 };
 
 /* AICSemi AIC8800 Bluetooth */
 &uart1 {
 	status = "okay";
+
+	aic8800_bt: bluetooth {
+		compatible = "aicsemi,aic8800-bt";
+		clocks = <&wifi_clk>;
+		clock-names = "default";
+		vbat-supply = <&reg_dldo1>;
+		vddio-supply = <&reg_dldo1>;
+	};
 };
