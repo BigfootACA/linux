@@ -408,6 +408,17 @@
 		reg = <0x0 0xfdca8000 0x0 0x8000>;
 	};
 
+	edp_phy: edp-phy@fdcb0000 {
+		compatible = "rockchip,rk3568-edp-phy";
+		reg = <0 0xfdcb0000 0 0x8000>;
+		clocks = <&pmucru XIN_OSC0_EDPPHY_G>, <&cru PCLK_EDPPHY_GRF>;
+		clock-names = "refclk", "pclk";
+		resets = <&cru XIN_OSC0_EDPPHY_G>;
+		reset-names = "apb";
+		#phy-cells = <0>;
+		status = "okay";
+	};
+
 	pmucru: clock-controller@fdd00000 {
 		compatible = "rockchip,rk3568-pmucru";
 		reg = <0x0 0xfdd00000 0x0 0x1000>;
@@ -879,6 +890,37 @@
 			};
 
 			hdmi_out: port@1 {
+				reg = <1>;
+			};
+		};
+	};
+
+	edp: edp@fe0c0000 {
+		compatible = "rockchip,rk3568-edp";
+		reg = <0x0 0xfe0c0000 0x0 0x1000>;
+		clocks = <&pmucru XIN_OSC0_EDPPHY_G>,
+			 <&cru PCLK_EDP_CTRL>,
+			 <&cru CLK_EDP_200M>,
+			 <&cru HCLK_VO>;
+		clock-names = "dp", "pclk", "spdif", "hclk";
+		interrupts = <GIC_SPI 18 IRQ_TYPE_LEVEL_HIGH>;
+		phys = <&edp_phy>;
+		phy-names = "dp";
+		power-domains = <&power RK3568_PD_VO>;
+		resets = <&cru SRST_EDP_24M>,
+			 <&cru SRST_P_EDP_CTRL>;
+		reset-names = "dp", "apb";
+		status = "disabled";
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			edp_in: port@0 {
+				reg = <0>;
+			};
+
+			edp_out: port@1 {
 				reg = <1>;
 			};
 		};
