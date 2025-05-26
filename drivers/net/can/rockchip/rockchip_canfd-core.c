@@ -433,6 +433,9 @@ static void rk3576canfd_chip_start(struct rkcanfd_priv *priv)
 		      RK3576CANFD_REG_BRS_CFG_BRS_NEGSYNC_EN |
 		      RK3576CANFD_REG_BRS_CFG_BRS_POSSYNC_EN);
 
+	if (priv->use_dma)
+		rkcanfd_write(priv, RK3576CANFD_REG_DMA_CTRL,
+			      RK3576CANFD_REG_DMA_CTRL_DMA_RX_EN | priv->dma_thr);
 	rkcanfd_set_bittiming(priv);
 
 	priv->devtype_data.interrupts_disable(priv);
@@ -1323,10 +1326,31 @@ static const struct of_device_id rkcanfd_of_match[] = {
 };
 MODULE_DEVICE_TABLE(of, rkcanfd_of_match);
 
+static void rk3576_canfd_dma_init(struct rkcanfd_priv *priv)
+{
+	struct dma_slave_config rxconf = {
+		.direction = DMA_DEV_TO_MEM,
+		.src_addr = priv->rx_dma_src_addr,
+		.src_addr_width = 4,
+		.dst_addr_width = 4,
+		.src_maxburst = 9,
+	};
+
+	priv->dma_thr = rxconf.src_maxburst - 1;
+	priv->rxbuf = dma_alloc_coherent(priv->dev, priv->dma_size * 14,
+					 &priv->rx_dma_dst_addr, GFP_KERNEL);
+	if (!priv->rxbuf) {
+		priv->use_dma = 0;
+		return;
+	}
+	dmaengine_slave_config(priv->rxchan, &rxconf);
+}
+
 static int rkcanfd_probe(struct platform_device *pdev)
 {
 	struct rkcanfd_priv *priv;
 	struct net_device *ndev;
+	struct resource *res;
 	const void *match;
 	int err;
 
@@ -1348,6 +1372,7 @@ static int rkcanfd_probe(struct platform_device *pdev)
 		goto out_free_candev;
 	}
 
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	priv->regs = devm_platform_ioremap_resource(pdev, 0);
 	if (IS_ERR(priv->regs)) {
 		err = PTR_ERR(priv->regs);
@@ -1375,6 +1400,7 @@ static int rkcanfd_probe(struct platform_device *pdev)
 	priv->can.do_set_mode = rkcanfd_set_mode;
 	priv->can.do_get_berr_counter = rkcanfd_get_berr_counter;
 	priv->ndev = ndev;
+	priv->dev = &pdev->dev;
 
 	match = device_get_match_data(&pdev->dev);
 	if (match) {
@@ -1382,6 +1408,19 @@ static int rkcanfd_probe(struct platform_device *pdev)
 		if (!(priv->devtype_data.quirks & RKCANFD_QUIRK_CANFD_BROKEN))
 			priv->can.ctrlmode_supported |= CAN_CTRLMODE_FD;
 	}
+
+	priv->rxchan = dma_request_chan(&pdev->dev, "rx");
+	if (IS_ERR(priv->rxchan)) {
+		dev_warn(&pdev->dev, "Failed to request rxchan\n");
+		priv->rxchan = NULL;
+		priv->use_dma = 0;
+	} else {
+		priv->rx_dma_src_addr = res->start + RK3576CANFD_REG_RXFRD;
+		priv->dma_size = RK3576CANFD_REG_STR_STATE_INTM_LEFT_CNT_UNIT * 4;
+		priv->use_dma = 1;
+	}
+	if (priv->use_dma)
+		rk3576_canfd_dma_init(priv);
 
 	err = can_rx_offload_add_manual(ndev, &priv->offload,
 					RKCANFD_NAPI_WEIGHT);
