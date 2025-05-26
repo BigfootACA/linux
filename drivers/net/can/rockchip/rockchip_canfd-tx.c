@@ -165,3 +165,30 @@ void rkcanfd_handle_tx_done_one(struct rkcanfd_priv *priv, const u32 ts,
 							    frame_len_p);
 	stats->tx_packets++;
 }
+
+int rkcanfd_handle_rk3576_tx_int(struct rkcanfd_priv *priv)
+{
+	struct net_device_stats *stats = &priv->ndev->stats;
+	unsigned int tx_tail;
+	unsigned int frame_len = 0;
+
+	tx_tail = rkcanfd_get_tx_tail(priv);
+
+	/* Manual handling of CAN Bus Error counters. See
+	 * rkcanfd_get_corrected_berr_counter() for detailed
+	 * explanation.
+	 */
+	if (priv->bec.txerr)
+		priv->bec.txerr--;
+
+	stats->tx_bytes +=
+		can_rx_offload_get_echo_skb_queue_tail(&priv->offload,
+						       tx_tail, &frame_len);
+	stats->tx_packets++;
+	WRITE_ONCE(priv->tx_tail, priv->tx_tail + 1);
+	netif_subqueue_completed_wake(priv->ndev, 0, 1, frame_len,
+				      rkcanfd_get_effective_tx_free(priv),
+				      RKCANFD_TX_START_THRESHOLD);
+	return 0;
+}
+

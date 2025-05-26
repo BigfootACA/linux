@@ -31,6 +31,8 @@ static const char *__rkcanfd_get_model_str(enum rkcanfd_model model)
 		return "rk3568v2";
 	case RKCANFD_MODEL_RK3568V3:
 		return "rk3568v3";
+	case RKCANFD_MODEL_RK3576:
+		return "rk3576";
 	}
 
 	return "<unknown>";
@@ -176,6 +178,30 @@ static void rkcanfd_get_berr_counter_corrected(struct rkcanfd_priv *priv,
 		    !!(reg_state & RKCANFD_REG_STATE_ERROR_WARNING_STATE));
 }
 
+static void rk3576canfd_get_berr_counter_corrected(struct rkcanfd_priv *priv,
+						   struct can_berr_counter *bec)
+{
+	struct can_berr_counter bec_raw;
+	u32 reg_state;
+
+	bec->rxerr = rkcanfd_read(priv, RK3576CANFD_REG_RXERRORCNT);
+	bec->txerr = rkcanfd_read(priv, RK3576CANFD_REG_TXERRORCNT);
+	bec_raw = *bec;
+
+	if (!bec->rxerr && !bec->txerr)
+		*bec = priv->bec;
+	else
+		priv->bec = *bec;
+
+	reg_state = rkcanfd_read(priv, RKCANFD_REG_STATE);
+	netdev_vdbg(priv->ndev,
+		    "%s: Raw/Cor: txerr=%3u/%3u rxerr=%3u/%3u Bus Off=%u Warning=%u\n",
+		    __func__,
+		    bec_raw.txerr, bec->txerr, bec_raw.rxerr, bec->rxerr,
+		    !!(reg_state & RK3576CANFD_REG_STATE_BUS_OFF_STATE),
+		    !!(reg_state & RK3576CANFD_REG_STATE_ERROR_WARNING_STATE));
+}
+
 static int rkcanfd_get_berr_counter(const struct net_device *ndev,
 				    struct can_berr_counter *bec)
 {
@@ -206,6 +232,11 @@ static void rkcanfd_chip_interrupts_disable(const struct rkcanfd_priv *priv)
 	rkcanfd_write(priv, RKCANFD_REG_INT_MASK, RKCANFD_REG_INT_ALL);
 }
 
+static void rk3576canfd_chip_interrupts_disable(const struct rkcanfd_priv *priv)
+{
+	rkcanfd_write(priv, RK3576CANFD_REG_INT_MASK, RK3576CANFD_REG_INT_ALL);
+}
+
 static void rkcanfd_chip_fifo_setup(struct rkcanfd_priv *priv)
 {
 	u32 reg;
@@ -218,6 +249,72 @@ static void rkcanfd_chip_fifo_setup(struct rkcanfd_priv *priv)
 	WRITE_ONCE(priv->tx_head, 0);
 	WRITE_ONCE(priv->tx_tail, 0);
 	netdev_reset_queue(priv->ndev);
+}
+
+static void rk3576canfd_chip_fifo_setup(struct rkcanfd_priv *priv)
+{
+	u32 ism = 0, water = 0;
+
+	ism = RK3576CANFD_REG_STR_CTL_ISM_SEL_CANFD_FIXED;
+	water = RK3576CANFD_ISM_WATERMASK_CANFD;
+
+	/* internal sram mode */
+	rkcanfd_write(priv, RK3576CANFD_REG_STR_CTL,
+		      (FIELD_PREP(RK3576CANFD_REG_STR_CTL_ISM_SEL, ism) |
+		      RK3576CANFD_REG_STR_CTL_STORAGE_TIMEOUT_MODE));
+	rkcanfd_write(priv, RK3576CANFD_REG_STR_WTM, water);
+	WRITE_ONCE(priv->tx_head, 0);
+	WRITE_ONCE(priv->tx_tail, 0);
+	netdev_reset_queue(priv->ndev);
+}
+
+static int rk3576canfd_atf_config(struct rkcanfd_priv *priv, int mode)
+{
+	u32 id[10] = {0};
+	u32 dlc = 0, dlc_over = 0;
+
+	switch (mode) {
+	case RK3576CANFD_REG_ATFM_MASK_SEL_MASK_MODE:
+		rkcanfd_write(priv, RK3576CANFD_REG_ATF0, id[0]);
+		rkcanfd_write(priv, RK3576CANFD_REG_ATF1, id[1]);
+		rkcanfd_write(priv, RK3576CANFD_REG_ATF2, id[2]);
+		rkcanfd_write(priv, RK3576CANFD_REG_ATF3, id[3]);
+		rkcanfd_write(priv, RK3576CANFD_REG_ATF4, id[4]);
+		rkcanfd_write(priv, RK3576CANFD_REG_ATFM0, RK3576CANFD_REG_ATFM_ID);
+		rkcanfd_write(priv, RK3576CANFD_REG_ATFM1, RK3576CANFD_REG_ATFM_ID);
+		rkcanfd_write(priv, RK3576CANFD_REG_ATFM2, RK3576CANFD_REG_ATFM_ID);
+		rkcanfd_write(priv, RK3576CANFD_REG_ATFM3, RK3576CANFD_REG_ATFM_ID);
+		rkcanfd_write(priv, RK3576CANFD_REG_ATFM4, RK3576CANFD_REG_ATFM_ID);
+		break;
+	case RK3576CANFD_REG_ATFM_MASK_SEL_LIST_MODE:
+		rkcanfd_write(priv, RK3576CANFD_REG_ATF0, id[0]);
+		rkcanfd_write(priv, RK3576CANFD_REG_ATF1, id[1]);
+		rkcanfd_write(priv, RK3576CANFD_REG_ATF2, id[2]);
+		rkcanfd_write(priv, RK3576CANFD_REG_ATF3, id[3]);
+		rkcanfd_write(priv, RK3576CANFD_REG_ATF4, id[4]);
+		rkcanfd_write(priv, RK3576CANFD_REG_ATFM0, id[5] | RK3576CANFD_REG_ATFM_MASK_SEL);
+		rkcanfd_write(priv, RK3576CANFD_REG_ATFM1, id[6] | RK3576CANFD_REG_ATFM_MASK_SEL);
+		rkcanfd_write(priv, RK3576CANFD_REG_ATFM2, id[7] | RK3576CANFD_REG_ATFM_MASK_SEL);
+		rkcanfd_write(priv, RK3576CANFD_REG_ATFM3, id[8] | RK3576CANFD_REG_ATFM_MASK_SEL);
+		rkcanfd_write(priv, RK3576CANFD_REG_ATFM4, id[9] | RK3576CANFD_REG_ATFM_MASK_SEL);
+		break;
+	default:
+		rkcanfd_write(priv, RK3576CANFD_REG_ATF_CTL, RK3576CANFD_REG_ATF_CTL_ATF_DIS_ALL);
+		return -EINVAL;
+	}
+
+	if (dlc) {
+		if (dlc_over)
+			rkcanfd_write(priv, RK3576CANFD_REG_ATF_DLC,
+				      dlc | RK3576CANFD_REG_ATF_DLC_ATF_DLC_EN);
+		else
+			rkcanfd_write(priv, RK3576CANFD_REG_ATF_DLC,
+				      dlc | RK3576CANFD_REG_ATF_DLC_ATF_DLC_EN |
+				      RK3576CANFD_REG_ATF_DLC_ATF_DLC_MODE);
+	}
+	rkcanfd_write(priv, RK3576CANFD_REG_ATF_CTL, 0);
+
+	return 0;
 }
 
 static void rkcanfd_chip_start(struct rkcanfd_priv *priv)
@@ -285,6 +382,68 @@ static void rkcanfd_chip_start(struct rkcanfd_priv *priv)
 		   rkcanfd_read(priv, RKCANFD_REG_MODE));
 }
 
+static void rk3576canfd_chip_start(struct rkcanfd_priv *priv)
+
+{
+	u32 reg;
+
+	rkcanfd_chip_set_reset_mode(priv);
+
+	/* Receiving Filter: accept all */
+	rk3576canfd_atf_config(priv, RK3576CANFD_REG_ATFM_MASK_SEL_MASK_MODE);
+
+	/* enable:
+	 * - CAN_FD: enable CAN-FD
+	 * - AUTO_RETX_MODE: auto retransmission on TX error
+	 * - COVER_MODE: RX-FIFO overwrite mode, do not send OVERLOAD frames
+	 * - RXSTX_MODE: Receive Self Transmit data mode
+	 * - WORK_MODE: transition from reset to working mode
+	 */
+	reg = rkcanfd_read(priv, RKCANFD_REG_MODE);
+	priv->reg_mode_default = reg | RKCANFD_REG_MODE_WORK_MODE;
+
+	if (priv->can.ctrlmode & CAN_CTRLMODE_LOOPBACK) {
+		priv->reg_mode_default |= RKCANFD_REG_MODE_LBACK_MODE;
+		rkcanfd_write(priv, RK3576CANFD_REG_ERROR_MASK,
+			      RK3576CANFD_REG_ERROR_MASK_ACK_ERROR);
+	}
+
+	/* mask, i.e. ignore:
+	 * - TIMESTAMP_COUNTER_OVERFLOW_INT - timestamp counter overflow interrupt
+	 * - TX_ARBIT_FAIL_INT - TX arbitration fail interrupt
+	 * - OVERLOAD_INT - CAN bus overload interrupt
+	 * - TX_FINISH_INT - Transmit finish interrupt
+	 */
+	priv->reg_int_mask_default = RK3576CANFD_REG_INT_RX_FINISH_INT;
+
+	/* Do not mask the bus error interrupt if the bus error
+	 * reporting is requested.
+	 */
+	if (!(priv->can.ctrlmode & CAN_CTRLMODE_BERR_REPORTING))
+		priv->reg_int_mask_default |= RKCANFD_REG_INT_ERROR_INT;
+
+	memset(&priv->bec, 0x0, sizeof(priv->bec));
+
+	priv->devtype_data.fifo_setup(priv);
+
+	rkcanfd_write(priv, RK3576CANFD_REG_AUTO_RETX_CFG,
+		      RK3576CANFD_REG_AUTO_RETX_CFG_AUTO_RETX_EN);
+
+	rkcanfd_write(priv, RK3576CANFD_REG_BRS_CFG,
+		      RK3576CANFD_REG_BRS_CFG_BRS_NEGSYNC_EN |
+		      RK3576CANFD_REG_BRS_CFG_BRS_POSSYNC_EN);
+
+	rkcanfd_set_bittiming(priv);
+
+	priv->devtype_data.interrupts_disable(priv);
+	rkcanfd_chip_set_work_mode(priv);
+
+	priv->can.state = CAN_STATE_ERROR_ACTIVE;
+
+	netdev_dbg(priv->ndev, "%s: reg_mode=0x%08x\n", __func__,
+		   rkcanfd_read(priv, RKCANFD_REG_MODE));
+}
+
 static void __rkcanfd_chip_stop(struct rkcanfd_priv *priv, const enum can_state state)
 {
 	priv->can.state = state;
@@ -301,11 +460,25 @@ static void rkcanfd_chip_stop(struct rkcanfd_priv *priv, const enum can_state st
 	__rkcanfd_chip_stop(priv, state);
 }
 
+static void rk3576canfd_chip_stop(struct rkcanfd_priv *priv, const enum can_state state)
+{
+	priv->can.state = state;
+
+	__rkcanfd_chip_stop(priv, state);
+}
+
 static void rkcanfd_chip_stop_sync(struct rkcanfd_priv *priv, const enum can_state state)
 {
 	priv->can.state = state;
 
 	rkcanfd_timestamp_stop_sync(priv);
+	__rkcanfd_chip_stop(priv, state);
+}
+
+static void rk3576canfd_chip_stop_sync(struct rkcanfd_priv *priv, const enum can_state state)
+{
+	priv->can.state = state;
+
 	__rkcanfd_chip_stop(priv, state);
 }
 
@@ -363,6 +536,9 @@ static const char *rkcanfd_get_error_type_str(unsigned int type)
 
 #define RKCAN_ERROR_CODE(reg_ec, code) \
 	((reg_ec) & RKCANFD_REG_ERROR_CODE_##code ? __stringify(code) " " : "")
+
+#define RK3576CAN_ERROR_CODE(reg_ec, code) \
+	((reg_ec) & RK3576CANFD_REG_ERROR_CODE_##code ? __stringify(code) " " : "")
 
 static void
 rkcanfd_handle_error_int_reg_ec(struct rkcanfd_priv *priv, struct can_frame *cf,
@@ -493,6 +669,128 @@ rkcanfd_handle_error_int_reg_ec(struct rkcanfd_priv *priv, struct can_frame *cf,
 	}
 }
 
+static void
+rk3576canfd_handle_error_int_reg_ec(struct rkcanfd_priv *priv, struct can_frame *cf,
+				    const u32 reg_ec)
+{
+	struct net_device_stats *stats = &priv->ndev->stats;
+	unsigned int type;
+	u32 reg_state, reg_cmd;
+
+	type = FIELD_GET(RK3576CANFD_REG_ERROR_CODE_TYPE, reg_ec);
+	reg_cmd = rkcanfd_read(priv, RK3576CANFD_REG_CMD);
+	reg_state = rkcanfd_read(priv, RK3576CANFD_REG_STATE);
+
+	netdev_dbg(priv->ndev, "%s Error in %s %s Phase: %s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s(0x%08x) CMD=%u RX=%u TX=%u Error-Warning=%u Bus-Off=%u\n",
+		   rkcanfd_get_error_type_str(type),
+		   reg_ec & RK3576CANFD_REG_ERROR_CODE_DIRECTION_RX ? "RX" : "TX",
+		   reg_ec & RK3576CANFD_REG_ERROR_CODE_PHASE ? "Data" : "Arbitration",
+		   RK3576CAN_ERROR_CODE(reg_ec, TX_ACK_EOF),
+		   RK3576CAN_ERROR_CODE(reg_ec, TX_CRC),
+		   RK3576CAN_ERROR_CODE(reg_ec, TX_STUFF_COUNT),
+		   RK3576CAN_ERROR_CODE(reg_ec, TX_DATA),
+		   RK3576CAN_ERROR_CODE(reg_ec, TX_SOF_DLC),
+		   RK3576CAN_ERROR_CODE(reg_ec, TX_IDLE),
+		   RK3576CAN_ERROR_CODE(reg_ec, RX_ERROR),
+		   RK3576CAN_ERROR_CODE(reg_ec, RX_OVERLOAD),
+		   RK3576CAN_ERROR_CODE(reg_ec, RX_SPACE),
+		   RK3576CAN_ERROR_CODE(reg_ec, RX_EOF),
+		   RK3576CAN_ERROR_CODE(reg_ec, RX_ACK_LIM),
+		   RK3576CAN_ERROR_CODE(reg_ec, RX_ACK),
+		   RK3576CAN_ERROR_CODE(reg_ec, RX_CRC_LIM),
+		   RK3576CAN_ERROR_CODE(reg_ec, RX_CRC),
+		   RK3576CAN_ERROR_CODE(reg_ec, RX_STUFF_COUNT),
+		   RK3576CAN_ERROR_CODE(reg_ec, RX_DATA),
+		   RK3576CAN_ERROR_CODE(reg_ec, RX_DLC),
+		   RK3576CAN_ERROR_CODE(reg_ec, RX_BRS_ESI),
+		   RK3576CAN_ERROR_CODE(reg_ec, RX_RES),
+		   RK3576CAN_ERROR_CODE(reg_ec, RX_FDF),
+		   RK3576CAN_ERROR_CODE(reg_ec, RX_ID2_RTR),
+		   RK3576CAN_ERROR_CODE(reg_ec, RX_SOF_IDE),
+		   RK3576CAN_ERROR_CODE(reg_ec, RX_BUS_IDLE),
+		   RK3576CAN_ERROR_CODE(reg_ec, RX_BUS_INT),
+		   RK3576CAN_ERROR_CODE(reg_ec, RX_STOP),
+		   reg_ec, reg_cmd,
+		   !!(reg_state & RK3576CANFD_REG_STATE_RX_PERIOD),
+		   !!(reg_state & RK3576CANFD_REG_STATE_TX_PERIOD),
+		   !!(reg_state & RK3576CANFD_REG_STATE_ERROR_WARNING_STATE),
+		   !!(reg_state & RK3576CANFD_REG_STATE_BUS_OFF_STATE));
+
+	priv->can.can_stats.bus_error++;
+
+	if (reg_ec & RK3576CANFD_REG_ERROR_CODE_DIRECTION_RX)
+		stats->rx_errors++;
+	else
+		stats->tx_errors++;
+
+	if (!cf)
+		return;
+
+	if (reg_ec & RK3576CANFD_REG_ERROR_CODE_DIRECTION_RX) {
+		if (reg_ec & RK3576CANFD_REG_ERROR_CODE_RX_SOF_IDE)
+			cf->data[3] = CAN_ERR_PROT_LOC_SOF;
+		else if (reg_ec & RK3576CANFD_REG_ERROR_CODE_RX_ID2_RTR)
+			cf->data[3] = CAN_ERR_PROT_LOC_RTR;
+		/* RKCANFD_REG_ERROR_CODE_RX_FDF */
+		else if (reg_ec & RK3576CANFD_REG_ERROR_CODE_RX_RES)
+			cf->data[3] = CAN_ERR_PROT_LOC_RES0;
+		/* RKCANFD_REG_ERROR_CODE_RX_BRS_ESI */
+		else if (reg_ec & RK3576CANFD_REG_ERROR_CODE_RX_DLC)
+			cf->data[3] = CAN_ERR_PROT_LOC_DLC;
+		else if (reg_ec & RK3576CANFD_REG_ERROR_CODE_RX_DATA)
+			cf->data[3] = CAN_ERR_PROT_LOC_DATA;
+		/* RKCANFD_REG_ERROR_CODE_RX_STUFF_COUNT */
+		else if (reg_ec & RK3576CANFD_REG_ERROR_CODE_RX_CRC)
+			cf->data[3] = CAN_ERR_PROT_LOC_CRC_SEQ;
+		else if (reg_ec & RK3576CANFD_REG_ERROR_CODE_RX_CRC_LIM)
+			cf->data[3] = CAN_ERR_PROT_LOC_ACK_DEL;
+		else if (reg_ec & RK3576CANFD_REG_ERROR_CODE_RX_ACK)
+			cf->data[3] = CAN_ERR_PROT_LOC_ACK;
+		else if (reg_ec & RK3576CANFD_REG_ERROR_CODE_RX_ACK_LIM)
+			cf->data[3] = CAN_ERR_PROT_LOC_ACK_DEL;
+		else if (reg_ec & RK3576CANFD_REG_ERROR_CODE_RX_EOF)
+			cf->data[3] = CAN_ERR_PROT_LOC_EOF;
+		else if (reg_ec & RK3576CANFD_REG_ERROR_CODE_RX_SPACE)
+			cf->data[3] = CAN_ERR_PROT_LOC_EOF;
+	} else {
+		cf->data[2] |= CAN_ERR_PROT_TX;
+
+		if (reg_ec & RK3576CANFD_REG_ERROR_CODE_TX_SOF_DLC)
+			cf->data[3] = CAN_ERR_PROT_LOC_SOF;
+		else if (reg_ec & RK3576CANFD_REG_ERROR_CODE_TX_DATA)
+			cf->data[3] = CAN_ERR_PROT_LOC_DATA;
+		/* RKCANFD_REG_ERROR_CODE_TX_STUFF_COUNT */
+		else if (reg_ec & RK3576CANFD_REG_ERROR_CODE_TX_CRC)
+			cf->data[3] = CAN_ERR_PROT_LOC_CRC_SEQ;
+		else if (reg_ec & RK3576CANFD_REG_ERROR_CODE_TX_ACK_EOF)
+			cf->data[3] = CAN_ERR_PROT_LOC_ACK_DEL;
+	}
+
+	switch (reg_ec & RK3576CANFD_REG_ERROR_CODE_TYPE) {
+	case FIELD_PREP_CONST(RK3576CANFD_REG_ERROR_CODE_TYPE,
+			      RK3576CANFD_REG_ERROR_CODE_TYPE_BIT):
+
+		cf->data[2] |= CAN_ERR_PROT_BIT;
+		break;
+	case FIELD_PREP_CONST(RK3576CANFD_REG_ERROR_CODE_TYPE,
+			      RK3576CANFD_REG_ERROR_CODE_TYPE_STUFF):
+		cf->data[2] |= CAN_ERR_PROT_STUFF;
+		break;
+	case FIELD_PREP_CONST(RK3576CANFD_REG_ERROR_CODE_TYPE,
+			      RK3576CANFD_REG_ERROR_CODE_TYPE_FORM):
+		cf->data[2] |= CAN_ERR_PROT_FORM;
+		break;
+	case FIELD_PREP_CONST(RK3576CANFD_REG_ERROR_CODE_TYPE,
+			      RK3576CANFD_REG_ERROR_CODE_TYPE_ACK):
+		cf->can_id |= CAN_ERR_ACK;
+		break;
+	case FIELD_PREP_CONST(RK3576CANFD_REG_ERROR_CODE_TYPE,
+			      RK3576CANFD_REG_ERROR_CODE_TYPE_CRC):
+		cf->data[3] = CAN_ERR_PROT_LOC_CRC_SEQ;
+		break;
+	}
+}
+
 static int rkcanfd_handle_error_int(struct rkcanfd_priv *priv)
 {
 	struct net_device_stats *stats = &priv->ndev->stats;
@@ -524,6 +822,41 @@ static int rkcanfd_handle_error_int(struct rkcanfd_priv *priv)
 		return 0;
 
 	err = can_rx_offload_queue_timestamp(&priv->offload, skb, timestamp);
+	if (err)
+		stats->rx_fifo_errors++;
+
+	return 0;
+}
+
+static int rkcanfd_handle_rk3576_error_int(struct rkcanfd_priv *priv)
+{
+	struct net_device_stats *stats = &priv->ndev->stats;
+	struct can_frame *cf = NULL;
+	u32 reg_ec;
+	struct sk_buff *skb;
+	int err;
+
+	reg_ec = rkcanfd_read(priv, RK3576CANFD_REG_ERROR_CODE);
+	if (!reg_ec)
+		return 0;
+
+	if (priv->can.ctrlmode & CAN_CTRLMODE_BERR_REPORTING) {
+		skb = alloc_can_err_skb(priv->ndev, &cf);
+		if (cf) {
+			struct can_berr_counter bec;
+
+			priv->devtype_data.get_berr_counter(priv, &bec);
+			cf->can_id |= CAN_ERR_PROT | CAN_ERR_BUSERROR | CAN_ERR_CNT;
+			cf->data[6] = bec.txerr;
+			cf->data[7] = bec.rxerr;
+		}
+	}
+
+	rk3576canfd_handle_error_int_reg_ec(priv, cf, reg_ec);
+	if (!cf)
+		return 0;
+
+	err = can_rx_offload_queue_tail(&priv->offload, skb);
 	if (err)
 		stats->rx_fifo_errors++;
 
@@ -575,6 +908,50 @@ static int rkcanfd_handle_state_error_int(struct rkcanfd_priv *priv)
 	return 0;
 }
 
+static int rkcanfd_handle_rk3576_state_error_int(struct rkcanfd_priv *priv)
+{
+	struct net_device_stats *stats = &priv->ndev->stats;
+	enum can_state new_state, rx_state, tx_state;
+	struct net_device *ndev = priv->ndev;
+	struct can_berr_counter bec;
+	struct can_frame *cf = NULL;
+	struct sk_buff *skb;
+	int err;
+
+	priv->devtype_data.get_berr_counter(priv, &bec);
+	can_state_get_by_berr_counter(ndev, &bec, &tx_state, &rx_state);
+
+	new_state = max(tx_state, rx_state);
+	if (new_state == priv->can.state)
+		return 0;
+
+	/* The skb allocation might fail, but can_change_state()
+	 * handles cf == NULL.
+	 */
+	skb = alloc_can_err_skb(priv->ndev, &cf);
+	can_change_state(ndev, cf, tx_state, rx_state);
+
+	if (new_state == CAN_STATE_BUS_OFF) {
+		priv->devtype_data.chip_stop(priv, CAN_STATE_BUS_OFF);
+		can_bus_off(ndev);
+	}
+
+	if (!skb)
+		return 0;
+
+	if (new_state != CAN_STATE_BUS_OFF) {
+		cf->can_id |= CAN_ERR_CNT;
+		cf->data[6] = bec.txerr;
+		cf->data[7] = bec.rxerr;
+	}
+
+	err = can_rx_offload_queue_tail(&priv->offload, skb);
+	if (err)
+		stats->rx_fifo_errors++;
+
+	return 0;
+}
+
 static int
 rkcanfd_handle_rx_fifo_overflow_int(struct rkcanfd_priv *priv)
 {
@@ -620,6 +997,55 @@ rkcanfd_handle_rx_fifo_overflow_int(struct rkcanfd_priv *priv)
 			   __stringify(irq), ERR_PTR(err)); \
 	err; \
 })
+
+static irqreturn_t rk3576canfd_irq(int irq, void *dev_id)
+{
+	struct rkcanfd_priv *priv = dev_id;
+	u32 reg_int_unmasked, reg_int;
+
+	reg_int_unmasked = rkcanfd_read(priv, RK3576CANFD_REG_INT);
+	reg_int = reg_int_unmasked & ~priv->reg_int_mask_default;
+
+	if (!reg_int)
+		return IRQ_NONE;
+
+	rkcanfd_write(priv, RK3576CANFD_REG_INT, reg_int);
+
+	if (reg_int & (RK3576CANFD_REG_INT_RXSTR_TIMEOUT_INT |
+		       RK3576CANFD_REG_INT_ISM_WTM_INT |
+		       RK3576CANFD_REG_INT_RX_FIFO_FULL_INT)) {
+		rkcanfd_write(priv, RK3576CANFD_REG_INT_MASK,
+			      priv->reg_int_mask_default | RK3576CANFD_REG_INT_ISM_WTM_INT |
+			      RK3576CANFD_REG_INT_RXSTR_TIMEOUT_INT |
+			      RK3576CANFD_REG_INT_RX_FINISH_INT);
+		rkcanfd_handle(priv, rk3576_rx_int);
+	}
+
+	if (reg_int & RK3576CANFD_REG_INT_TX_FINISH_INT)
+		rkcanfd_handle(priv, rk3576_tx_int);
+
+	if (reg_int & RK3576CANFD_REG_INT_ERROR_INT)
+		rkcanfd_handle(priv, rk3576_error_int);
+
+	if (reg_int & (RK3576CANFD_REG_INT_BUS_OFF_INT |
+		       RK3576CANFD_REG_INT_PASSIVE_ERROR_INT |
+		       RK3576CANFD_REG_INT_ERROR_WARNING_INT) ||
+	    priv->can.state > CAN_STATE_ERROR_ACTIVE)
+		rkcanfd_handle(priv, rk3576_state_error_int);
+
+	if (reg_int & RK3576CANFD_REG_INT_WAKEUP_INT)
+		netdev_info(priv->ndev, "%s: WAKEUP_INT\n", __func__);
+
+	if (reg_int & RK3576CANFD_REG_INT_BUS_OFF_RECOVERY_INT)
+		netdev_info(priv->ndev, "%s: BUS_OFF_RECOVERY_INT\n", __func__);
+
+	if (reg_int & RK3576CANFD_REG_INT_OVERLOAD_INT)
+		netdev_info(priv->ndev, "%s: OVERLOAD_INT\n", __func__);
+
+	can_rx_offload_irq_finish(&priv->offload);
+
+	return IRQ_HANDLED;
+}
 
 static irqreturn_t rkcanfd_irq(int irq, void *dev_id)
 {
@@ -774,6 +1200,16 @@ static void rkcanfd_register_done(const struct rkcanfd_priv *priv)
 			    RKCANFD_ERRATUM_5_SYSCLOCK_HZ_MIN / MEGA);
 }
 
+static void rk3576canfd_register_done(const struct rkcanfd_priv *priv)
+{
+	u32 dev_id;
+
+	dev_id = rkcanfd_read(priv, RK3576CANFD_REG_RTL_VERSION);
+	netdev_info(priv->ndev,
+		    "Rockchip-CANFD %s rev%u.\n",
+		    rkcanfd_get_model_str(priv), dev_id);
+}
+
 static int rkcanfd_register(struct rkcanfd_priv *priv)
 {
 	struct net_device *ndev = priv->ndev;
@@ -857,6 +1293,20 @@ static const struct rkcanfd_devtype_data rkcanfd_devtype_data_rk3568v3 = {
 	.register_done = rkcanfd_register_done,
 };
 
+/* The rk3576 CAN-FD */
+static const struct rkcanfd_devtype_data rkcanfd_devtype_data_rk3576 = {
+	.model = RKCANFD_MODEL_RK3576,
+	.get_berr_counter = rk3576canfd_get_berr_counter_corrected,
+	.interrupts_enable = rkcanfd_chip_interrupts_enable,
+	.interrupts_disable = rk3576canfd_chip_interrupts_disable,
+	.fifo_setup = rk3576canfd_chip_fifo_setup,
+	.chip_start = rk3576canfd_chip_start,
+	.chip_stop = rk3576canfd_chip_stop,
+	.chip_stop_sync = rk3576canfd_chip_stop_sync,
+	.irq = rk3576canfd_irq,
+	.register_done = rk3576canfd_register_done,
+};
+
 static const struct of_device_id rkcanfd_of_match[] = {
 	{
 		.compatible = "rockchip,rk3568v2-canfd",
@@ -864,6 +1314,9 @@ static const struct of_device_id rkcanfd_of_match[] = {
 	}, {
 		.compatible = "rockchip,rk3568v3-canfd",
 		.data = &rkcanfd_devtype_data_rk3568v3,
+	},  {
+		.compatible = "rockchip,rk3576-canfd",
+		.data = &rkcanfd_devtype_data_rk3576,
 	}, {
 		/* sentinel */
 	},
