@@ -12,6 +12,7 @@
 #include <dt-bindings/clock/rockchip,rk3528-cru.h>
 #include <dt-bindings/power/rockchip,rk3528-power.h>
 #include <dt-bindings/reset/rockchip,rk3528-cru.h>
+#include <dt-bindings/soc/rockchip,boot-mode.h>
 
 / {
 	compatible = "rockchip,rk3528";
@@ -568,6 +569,21 @@
 			reg = <0x0 0xff360000 0x0 0x10000>;
 		};
 
+		pmu_grf: syscon@ff370000 {
+			compatible = "rockchip,rk3528-pmu-grf", "syscon";
+			reg = <0x0 0xff360000 0x0 0x10000>;
+
+			reboot-mode {
+				compatible = "syscon-reboot-mode";
+				offset = <0x200>;
+				mode-bootloader = <BOOT_BL_DOWNLOAD>;
+				mode-fastboot = <BOOT_FASTBOOT>;
+				mode-loader = <BOOT_BL_DOWNLOAD>;
+				mode-normal = <BOOT_NORMAL>;
+				mode-recovery = <BOOT_RECOVERY>;
+			};
+		};
+
 		cru: clock-controller@ff4a0000 {
 			compatible = "rockchip,rk3528-cru";
 			reg = <0x0 0xff4a0000 0x0 0x30000>;
@@ -675,6 +691,16 @@
 					#power-domain-cells = <0>;
 				};
 			};
+		};
+
+		mailbox: mailbox@ff630000 {
+			compatible = "rockchip,rk3528-mailbox",
+				     "rockchip,rk3368-mailbox";
+			reg = <0x0 0xff630000 0x0 0x200>;
+			interrupts = <GIC_SPI 60 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&cru PCLK_PMU_MAILBOX>;
+			clock-names = "pclk_mailbox";
+			#mbox-cells = <1>;
 		};
 
 		gpu: gpu@ff700000 {
