@@ -847,6 +847,7 @@ config VIDEO_VGXY61
 
 source "drivers/media/i2c/ccs/Kconfig"
 source "drivers/media/i2c/et8ek8/Kconfig"
+source "drivers/media/i2c/rk628/Kconfig"
 
 endif
 
