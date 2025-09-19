@@ -296,11 +296,20 @@ static bool rockchip_pwm_v4_on_and_continuous(struct rockchip_pwm_v4 *pc)
 
 static int rockchip_pwm_v4_probe(struct platform_device *pdev)
 {
-	struct rockchip_mfpwm_func *pwmf = dev_get_platdata(&pdev->dev);
+	struct rockchip_mfpwm_func *pwmf;
+	struct rockchip_mfpwm *mfpwm;
 	struct rockchip_pwm_v4 *pc;
 	struct pwm_chip *chip;
 	struct device *dev = &pdev->dev;
 	int ret;
+
+	mfpwm = dev_get_drvdata(dev->parent);
+	if (IS_ERR_OR_NULL(mfpwm))
+		return -ENODEV;
+
+	ret = mfpwm_register_func(mfpwm, &pwmf, dev);
+	if (ret)
+		return dev_err_probe(dev, ret, "couldn't register mfpwm func\n");
 
 	chip = devm_pwmchip_alloc(dev, 1, sizeof(*pc));
 	if (IS_ERR(chip))
@@ -350,19 +359,21 @@ static void rockchip_pwm_v4_remove(struct platform_device *pdev)
 	pwmchip_remove(chip);
 }
 
-static const struct platform_device_id rockchip_pwm_v4_ids[] = {
-	{ .name = "pwm-rockchip-v4", },
+static const struct of_device_id rockchip_pwm_v4_of_match[] = {
+	{
+		.compatible = "rockchip,pwm-v4",
+	},
 	{ /* sentinel */ }
 };
-MODULE_DEVICE_TABLE(platform, rockchip_pwm_v4_ids);
+MODULE_DEVICE_TABLE(of, rockchip_pwm_v4_of_match);
 
 static struct platform_driver rockchip_pwm_v4_driver = {
 	.probe = rockchip_pwm_v4_probe,
 	.remove = rockchip_pwm_v4_remove,
 	.driver = {
 		.name = "pwm-rockchip-v4",
+		.of_match_table = rockchip_pwm_v4_of_match,
 	},
-	.id_table = rockchip_pwm_v4_ids,
 };
 module_platform_driver(rockchip_pwm_v4_driver);
 
