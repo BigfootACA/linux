@@ -19,6 +19,7 @@
 #include <linux/clk-provider.h>
 #include <linux/module.h>
 #include <linux/of.h>
+#include <linux/of_platform.h>
 #include <linux/overflow.h>
 #include <linux/platform_device.h>
 #include <linux/spinlock.h>
@@ -225,25 +226,11 @@ void mfpwm_remove_func(struct rockchip_mfpwm_func *pwmf)
 }
 EXPORT_SYMBOL_NS_GPL(mfpwm_remove_func, "ROCKCHIP_MFPWM");
 
-/**
- * mfpwm_register_subdev - register a single mfpwm_func
- * @mfpwm: pointer to the parent &struct rockchip_mfpwm
- * @target: pointer to where the &struct platform_device pointer should be
- *          stored, usually a member of @mfpwm
- * @name: sub-device name string
- *
- * Allocate a single &struct mfpwm_func, fill its members with appropriate data,
- * and register a new platform device, saving its pointer to @target. The
- * allocation is devres tracked, so will be automatically freed on mfpwm remove.
- *
- * Returns: 0 on success, negative errno on error
- */
-static int mfpwm_register_subdev(struct rockchip_mfpwm *mfpwm,
-				 struct platform_device **target,
-				 const char *name)
+int mfpwm_register_func(struct rockchip_mfpwm *mfpwm,
+			struct rockchip_mfpwm_func **target,
+			struct device *dev)
 {
 	struct rockchip_mfpwm_func *func;
-	struct platform_device *child;
 
 	func = devm_kzalloc(&mfpwm->pdev->dev, sizeof(*func), GFP_KERNEL);
 	if (IS_ERR(func))
@@ -253,37 +240,11 @@ static int mfpwm_register_subdev(struct rockchip_mfpwm *mfpwm,
 	func->id = atomic_inc_return(&subdev_id);
 	func->base = mfpwm->base;
 	func->core = mfpwm->chosen_clk;
-	child = platform_device_register_data(&mfpwm->pdev->dev, name, func->id,
-					      func, sizeof(*func));
-
-	if (IS_ERR(child))
-		return PTR_ERR(child);
-
-	*target = child;
+	*target = func;
 
 	return 0;
 }
-
-static int mfpwm_register_subdevs(struct rockchip_mfpwm *mfpwm)
-{
-	int ret;
-
-	ret = mfpwm_register_subdev(mfpwm, &mfpwm->pwm_dev, "pwm-rockchip-v4");
-	if (ret)
-		return ret;
-
-	ret = mfpwm_register_subdev(mfpwm, &mfpwm->counter_dev,
-				    "rockchip-pwm-capture");
-	if (ret)
-		goto err_unreg_pwm_dev;
-
-	return 0;
-
-err_unreg_pwm_dev:
-	platform_device_unregister(mfpwm->pwm_dev);
-
-	return ret;
-}
+EXPORT_SYMBOL_NS_GPL(mfpwm_register_func, "ROCKCHIP_MFPWM");
 
 static int rockchip_mfpwm_probe(struct platform_device *pdev)
 {
@@ -352,14 +313,7 @@ static int rockchip_mfpwm_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, mfpwm);
 
-	ret = mfpwm_register_subdevs(mfpwm);
-	if (ret) {
-		dev_err(dev, "failed to register sub-devices: %pe\n",
-			ERR_PTR(ret));
-		return ret;
-	}
-
-	return ret;
+	return devm_of_platform_populate(dev);
 }
 
 static void rockchip_mfpwm_remove(struct platform_device *pdev)

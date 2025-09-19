@@ -30,6 +30,7 @@ struct rockchip_mfpwm;
  * @core: a pointer to the clk mux that drives this channel's PWM
  */
 struct rockchip_mfpwm_func {
+	struct device *dev;
 	int id;
 	void __iomem *base;
 	struct rockchip_mfpwm *parent;
@@ -480,5 +481,19 @@ void mfpwm_release(const struct rockchip_mfpwm_func *pwmf);
  * clock enables have been balanced, as the function cannot balance this.
  */
 void mfpwm_remove_func(struct rockchip_mfpwm_func *pwmf);
+
+/**
+ * mfpwm_register_func - register a new device function with the mfpwm
+ * @mfpwm: pointer to the parent &struct rockchip_mfpwm
+ * @target: pointer to where to store the pointer to the new function struct
+ * @name: name of the device function, for logging purposes only
+ *
+ * Allocates and initializes a new &struct rockchip_mfpwm_func, and assigns it
+ * a unique id. The caller is responsible for registering a platform device
+ * with this id, and for freeing the struct when it's no longer needed.
+ */
+int mfpwm_register_func(struct rockchip_mfpwm *mfpwm,
+			struct rockchip_mfpwm_func **target,
+			struct device *dev);
 
 #endif /* __SOC_ROCKCHIP_MFPWM_H__ */
