@@ -1041,8 +1041,12 @@
 			interrupts = <GIC_SPI 100 IRQ_TYPE_LEVEL_HIGH>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pwm0m0_ch0>;
-			#pwm-cells = <3>;
 			status = "disabled";
+			
+			pwm0_ch0: pwm0-ch0 {
+				compatible = "rockchip,pwm-v4";
+				#pwm-cells = <3>;
+			};
 		};
 
 		pwm0_2ch_1: pwm@27331000 {
@@ -1054,8 +1058,12 @@
 			interrupts = <GIC_SPI 101 IRQ_TYPE_LEVEL_HIGH>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pwm0m0_ch1>;
-			#pwm-cells = <3>;
 			status = "disabled";
+			
+			pwm0_ch1: pwm0-ch1 {
+				compatible = "rockchip,pwm-v4";
+				#pwm-cells = <3>;
+			};
 		};
 
 		pmu: power-management@27380000 {
@@ -2665,8 +2673,12 @@
 			interrupts = <GIC_SPI 102 IRQ_TYPE_LEVEL_HIGH>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pwm1m0_ch0>;
-			#pwm-cells = <3>;
 			status = "disabled";
+
+			pwm1_ch0: pwm1-ch0 {
+				compatible = "rockchip,pwm-v4";
+				#pwm-cells = <3>;
+			};
 		};
 
 		pwm1_6ch_1: pwm@2add1000 {
@@ -2678,8 +2690,12 @@
 			interrupts = <GIC_SPI 103 IRQ_TYPE_LEVEL_HIGH>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pwm1m0_ch1>;
-			#pwm-cells = <3>;
 			status = "disabled";
+
+			pwm1_ch1: pwm1-ch1 {
+				compatible = "rockchip,pwm-v4";
+				#pwm-cells = <3>;
+			};
 		};
 
 		pwm1_6ch_2: pwm@2add2000 {
@@ -2691,8 +2707,12 @@
 			interrupts = <GIC_SPI 104 IRQ_TYPE_LEVEL_HIGH>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pwm1m0_ch2>;
-			#pwm-cells = <3>;
 			status = "disabled";
+
+			pwm1_ch2: pwm1-ch2 {
+				compatible = "rockchip,pwm-v4";
+				#pwm-cells = <3>;
+			};
 		};
 
 		pwm1_6ch_3: pwm@2add3000 {
@@ -2704,8 +2724,12 @@
 			interrupts = <GIC_SPI 105 IRQ_TYPE_LEVEL_HIGH>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pwm1m0_ch3>;
-			#pwm-cells = <3>;
 			status = "disabled";
+
+			pwm1_ch3: pwm1-ch3 {
+				compatible = "rockchip,pwm-v4";
+				#pwm-cells = <3>;
+			};
 		};
 
 		pwm1_6ch_4: pwm@2add4000 {
@@ -2717,8 +2741,12 @@
 			interrupts = <GIC_SPI 106 IRQ_TYPE_LEVEL_HIGH>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pwm1m0_ch4>;
-			#pwm-cells = <3>;
 			status = "disabled";
+
+			pwm1_ch4: pwm1-ch4 {
+				compatible = "rockchip,pwm-v4";
+				#pwm-cells = <3>;
+			};
 		};
 
 		pwm1_6ch_5: pwm@2add5000 {
@@ -2730,8 +2758,12 @@
 			interrupts = <GIC_SPI 107 IRQ_TYPE_LEVEL_HIGH>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pwm1m0_ch5>;
-			#pwm-cells = <3>;
 			status = "disabled";
+
+			pwm1_ch5: pwm1-ch5 {
+				compatible = "rockchip,pwm-v4";
+				#pwm-cells = <3>;
+			};
 		};
 
 		pwm2_8ch_0: pwm@2ade0000 {
@@ -2743,8 +2775,12 @@
 			interrupts = <GIC_SPI 108 IRQ_TYPE_LEVEL_HIGH>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pwm2m0_ch0>;
-			#pwm-cells = <3>;
 			status = "disabled";
+
+			pwm2_ch0: pwm2-ch0 {
+				compatible = "rockchip,pwm-v4";
+				#pwm-cells = <3>;
+			};
 		};
 
 		pwm2_8ch_1: pwm@2ade1000 {
@@ -2756,8 +2792,12 @@
 			interrupts = <GIC_SPI 109 IRQ_TYPE_LEVEL_HIGH>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pwm2m0_ch1>;
-			#pwm-cells = <3>;
 			status = "disabled";
+
+			pwm2_ch1: pwm2-ch1 {
+				compatible = "rockchip,pwm-v4";
+				#pwm-cells = <3>;
+			};
 		};
 
 		pwm2_8ch_2: pwm@2ade2000 {
@@ -2769,8 +2809,12 @@
 			interrupts = <GIC_SPI 110 IRQ_TYPE_LEVEL_HIGH>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pwm2m0_ch2>;
-			#pwm-cells = <3>;
 			status = "disabled";
+
+			pwm2_ch2: pwm2-ch2 {
+				compatible = "rockchip,pwm-v4";
+				#pwm-cells = <3>;
+			};
 		};
 
 		pwm2_8ch_3: pwm@2ade3000 {
@@ -2782,8 +2826,12 @@
 			interrupts = <GIC_SPI 111 IRQ_TYPE_LEVEL_HIGH>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pwm2m0_ch3>;
-			#pwm-cells = <3>;
 			status = "disabled";
+
+			pwm2_ch3: pwm2-ch3 {
+				compatible = "rockchip,pwm-v4";
+				#pwm-cells = <3>;
+			};
 		};
 
 		pwm2_8ch_4: pwm@2ade4000 {
@@ -2795,8 +2843,12 @@
 			interrupts = <GIC_SPI 112 IRQ_TYPE_LEVEL_HIGH>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pwm2m0_ch4>;
-			#pwm-cells = <3>;
 			status = "disabled";
+
+			pwm2_ch4: pwm2-ch4 {
+				compatible = "rockchip,pwm-v4";
+				#pwm-cells = <3>;
+			};
 		};
 
 		pwm2_8ch_5: pwm@2ade5000 {
@@ -2808,8 +2860,12 @@
 			interrupts = <GIC_SPI 113 IRQ_TYPE_LEVEL_HIGH>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pwm2m0_ch5>;
-			#pwm-cells = <3>;
 			status = "disabled";
+
+			pwm2_ch5: pwm2-ch5 {
+				compatible = "rockchip,pwm-v4";
+				#pwm-cells = <3>;
+			};
 		};
 
 		pwm2_8ch_6: pwm@2ade6000 {
@@ -2821,8 +2877,12 @@
 			interrupts = <GIC_SPI 114 IRQ_TYPE_LEVEL_HIGH>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pwm2m0_ch6>;
-			#pwm-cells = <3>;
 			status = "disabled";
+
+			pwm2_ch6: pwm2-ch6 {
+				compatible = "rockchip,pwm-v4";
+				#pwm-cells = <3>;
+			};
 		};
 
 		pwm2_8ch_7: pwm@2ade7000 {
@@ -2834,8 +2894,12 @@
 			interrupts = <GIC_SPI 115 IRQ_TYPE_LEVEL_HIGH>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pwm2m0_ch7>;
-			#pwm-cells = <3>;
 			status = "disabled";
+
+			pwm2_ch7: pwm2-ch7 {
+				compatible = "rockchip,pwm-v4";
+				#pwm-cells = <3>;
+			};
 		};
 
 		saradc: adc@2ae00000 {
