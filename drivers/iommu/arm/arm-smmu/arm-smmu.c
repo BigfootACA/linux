@@ -1453,6 +1453,18 @@ static struct iommu_device *arm_smmu_probe_device(struct device *dev)
 		smmu = arm_smmu_get_by_fwnode(fwspec->iommu_fwnode);
 	}
 
+	/* Phytium FT2000+ workaround */
+	if ((read_cpuid_id() & 0xff000fff0) == 0x70006620 /* Phytium 0x70 FT2000+ 0x662 */) {
+		int num = fwspec->num_ids;
+
+		for (i = 0; i < num; i++) {
+			/* mask 0x7000 sid=(rid >> 3) */
+			u32 fwid = 0x70000000 | (fwspec->ids[i] >> 3);
+
+			iommu_fwspec_add_ids(dev, &fwid, 1);
+		}
+	}
+
 	ret = -EINVAL;
 	for (i = 0; i < fwspec->num_ids; i++) {
 		u16 sid = FIELD_GET(ARM_SMMU_SMR_ID, fwspec->ids[i]);
