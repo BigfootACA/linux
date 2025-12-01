@@ -10,7 +10,7 @@ for pkg in $_extrapackages; do
 	pkgname+=("${pkgbase}-${pkg}")
 done
 
-pkgver="6.13"
+pkgver="${KERNELRELEASE//-/_}"
 # The PKGBUILD is evaluated multiple times.
 # Running scripts/build-version from here would introduce inconsistencies.
 pkgrel="1"
@@ -47,13 +47,13 @@ _prologue() {
 build() {
 	_prologue
 
-	${MAKE} KERNELRELEASE="${KERNELRELEASE}" KBUILD_BUILD_VERSION="${pkgrel}"
-	${MAKE} KERNELRELEASE="${KERNELRELEASE}" KBUILD_BUILD_VERSION="${pkgrel}" Image.gz
+	${MAKE} KERNELRELEASE="${KERNELRELEASE}" KBUILD_BUILD_VERSION="1"
+	${MAKE} KERNELRELEASE="${KERNELRELEASE}" KBUILD_BUILD_VERSION="1" Image.gz
 }
 
 _package() {
 	pkgdesc="The Linux kernel and modules - AArch64 multi-platform"
-	provides=(linux=6.13 linux-aarch64=6.13 KSMBD-MODULE WIREGUARD-MODULE)
+	provides=(linux=7.0 linux-aarch64=7.0 KSMBD-MODULE WIREGUARD-MODULE)
 	conflicts=(linux linux-aarch64)
 	depends=(mkinitcpio)
 
