@@ -978,7 +978,7 @@ static void kfence_init_enable(void)
 	WRITE_ONCE(kfence_enabled, true);
 	queue_delayed_work(system_dfl_wq, &kfence_timer, 0);
 
-	pr_info("initialized - using %lu bytes for %d objects at 0x%p-0x%p\n", KFENCE_POOL_SIZE,
+	pr_info("initialized - using %lu bytes for %d objects at 0x%px-0x%px\n", KFENCE_POOL_SIZE,
 		CONFIG_KFENCE_NUM_OBJECTS, (void *)__kfence_pool,
 		(void *)(__kfence_pool + KFENCE_POOL_SIZE));
 }
