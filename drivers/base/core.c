@@ -1784,8 +1784,8 @@ static int fw_devlink_dev_sync_state(struct device *dev, void *data)
 		return 0;
 
 	if (fw_devlink_sync_state == FW_DEVLINK_SYNC_STATE_STRICT) {
-		dev_info(sup, "sync_state() pending due to %s\n",
-			 dev_name(link->consumer));
+		dev_dbg(sup, "sync_state() pending due to %s\n",
+			dev_name(link->consumer));
 		return 0;
 	}
 
@@ -2140,8 +2140,8 @@ static int fw_devlink_create_devlink(struct device *con,
 	if (__fw_devlink_relax_cycles(link->consumer, sup_handle)) {
 		__fwnode_link_cycle(link);
 		pr_debug("----- cycle: end -----\n");
-		pr_info("%pfwf: Fixed dependency cycle(s) with %pfwf\n",
-			link->consumer, sup_handle);
+		pr_debug("%pfwf: Fixed dependency cycle(s) with %pfwf\n",
+			 link->consumer, sup_handle);
 	}
 	device_links_write_unlock();
 
