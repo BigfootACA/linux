@@ -395,9 +395,9 @@ static int qcom_adreno_smmu_init_context(struct arm_smmu_domain *smmu_domain,
 	priv->set_prr_bit = NULL;
 	priv->set_prr_addr = NULL;
 
-	if (of_device_is_compatible(np, "qcom,smmu-500") &&
+	if ((of_device_is_compatible(np, "qcom,smmu-500") &&
 	    !of_device_is_compatible(np, "qcom,sm8250-smmu-500") &&
-	    of_device_is_compatible(np, "qcom,adreno-smmu")) {
+	    of_device_is_compatible(np, "qcom,adreno-smmu")) || !np) {
 		priv->set_prr_bit = qcom_adreno_smmu_set_prr_bit;
 		priv->set_prr_addr = qcom_adreno_smmu_set_prr_addr;
 	}
@@ -673,6 +673,7 @@ static struct arm_smmu_device *qcom_smmu_create(struct arm_smmu_device *smmu,
 	const struct device_node *np = smmu->dev->of_node;
 	const struct arm_smmu_impl *impl;
 	struct qcom_smmu *qsmmu;
+	u32 id;
 
 	if (!data)
 		return ERR_PTR(-EINVAL);
@@ -682,11 +683,25 @@ static struct arm_smmu_device *qcom_smmu_create(struct arm_smmu_device *smmu,
 	else
 		impl = data->impl;
 
+	#ifdef CONFIG_ACPI
+	/*
+	 * For ACPI boot (no device tree), detect Adreno SMMU by checking
+	 * the number of context banks. Adreno SMMU typically has fewer
+	 * than 10 context banks, so use adreno_impl for those devices.
+	 */
+	if (!np) {
+		id = arm_smmu_gr0_read(smmu, ARM_SMMU_GR0_ID0);
+		if (FIELD_GET(ARM_SMMU_ID1_NUMCB, id) < 10)
+			impl = data->adreno_impl;
+	}
+	#endif
+
 	if (!impl)
 		return smmu;
 
 	/* Check to make sure qcom_scm has finished probing */
-	if (!qcom_scm_is_available())
+	if (of_device_is_compatible(np, "qcom,sdm845-smmu-500") &&
+	    !qcom_scm_is_available())
 		return ERR_PTR(dev_err_probe(smmu->dev, -EPROBE_DEFER,
 			"qcom_scm not ready\n"));
 
@@ -778,6 +793,7 @@ static const struct of_device_id __maybe_unused qcom_smmu_impl_of_match[] = {
 static struct acpi_platform_list qcom_acpi_platlist[] = {
 	{ "LENOVO", "CB-01   ", 0x8180, ACPI_SIG_IORT, equal, "QCOM SMMU" },
 	{ "QCOM  ", "QCOMEDK2", 0x8180, ACPI_SIG_IORT, equal, "QCOM SMMU" },
+	{ "QCOM  ", "QCOMEDK2", 0x7280, ACPI_SIG_IORT, equal, "QCOM SMMU" },
 	{ }
 };
 #endif
