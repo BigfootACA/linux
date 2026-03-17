@@ -774,6 +774,9 @@ static int es8316_probe(struct snd_soc_component *component)
 		return ret;
 	}
 
+	if (es8316->mclk)
+		es8316->sysclk = clk_get_rate(es8316->mclk);
+
 	/* Reset codec and enable current state machine */
 	snd_soc_component_write(component, ES8316_RESET, 0x3f);
 	usleep_range(5000, 5500);
