@@ -8011,8 +8011,6 @@
 
 	thermal-zones {
 		cpu0-thermal {
-			polling-delay-passive = <250>;
-
 			thermal-sensors = <&tsens0 1>;
 
 			trips {
@@ -8025,8 +8023,6 @@
 		};
 
 		cpu1-thermal {
-			polling-delay-passive = <250>;
-
 			thermal-sensors = <&tsens0 2>;
 
 			trips {
@@ -8039,8 +8035,6 @@
 		};
 
 		cpu2-thermal {
-			polling-delay-passive = <250>;
-
 			thermal-sensors = <&tsens0 3>;
 
 			trips {
@@ -8053,8 +8047,6 @@
 		};
 
 		cpu3-thermal {
-			polling-delay-passive = <250>;
-
 			thermal-sensors = <&tsens0 4>;
 
 			trips {
@@ -8067,8 +8059,6 @@
 		};
 
 		cpu4-thermal {
-			polling-delay-passive = <250>;
-
 			thermal-sensors = <&tsens0 5>;
 
 			trips {
@@ -8081,8 +8071,6 @@
 		};
 
 		cpu5-thermal {
-			polling-delay-passive = <250>;
-
 			thermal-sensors = <&tsens0 6>;
 
 			trips {
@@ -8095,8 +8083,6 @@
 		};
 
 		cpu6-thermal {
-			polling-delay-passive = <250>;
-
 			thermal-sensors = <&tsens0 7>;
 
 			trips {
@@ -8109,8 +8095,6 @@
 		};
 
 		cpu7-thermal {
-			polling-delay-passive = <250>;
-
 			thermal-sensors = <&tsens0 8>;
 
 			trips {
@@ -8123,8 +8107,6 @@
 		};
 
 		cluster0-thermal {
-			polling-delay-passive = <250>;
-
 			thermal-sensors = <&tsens0 9>;
 
 			trips {
@@ -8164,8 +8146,6 @@
 		};
 
 		mem-thermal {
-			polling-delay-passive = <250>;
-
 			thermal-sensors = <&tsens1 15>;
 
 			trips {
