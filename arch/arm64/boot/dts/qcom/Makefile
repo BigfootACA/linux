@@ -168,6 +168,9 @@ dtb-$(CONFIG_ARCH_QCOM)	+= qcs615-ride.dtb
 qcs615-ride-el2-dtbs := qcs615-ride.dtb talos-el2.dtbo
 
 dtb-$(CONFIG_ARCH_QCOM)	+= qcs615-ride-el2.dtb
+dtb-$(CONFIG_ARCH_QCOM)	+= qcs6490-radxa-cm-q64-rpi-cm5-io.dtb
+qcs6490-radxa-cm-q64-rpi-cm5-io-kvm-dtbs	:= qcs6490-radxa-cm-q64-rpi-cm5-io.dtb qcs6490-radxa-cm-q64-rpi-cm5-io-kvm.dtbo
+dtb-$(CONFIG_ARCH_QCOM)	+= qcs6490-radxa-cm-q64-rpi-cm5-io-kvm.dtb
 dtb-$(CONFIG_ARCH_QCOM)	+= qcs6490-radxa-dragon-q6a.dtb
 qcs6490-radxa-dragon-q6a-kvm-dtbs	:= qcs6490-radxa-dragon-q6a.dtb qcs6490-radxa-dragon-q6a-kvm.dtbo
 dtb-$(CONFIG_ARCH_QCOM)	+= qcs6490-radxa-dragon-q6a-kvm.dtb
