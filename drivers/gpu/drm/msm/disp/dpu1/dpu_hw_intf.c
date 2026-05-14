@@ -170,8 +170,6 @@ static void dpu_hw_intf_setup_timing_engine(struct dpu_hw_intf *intf,
 	if (p->wide_bus_en)
 		intf_cfg2 |= INTF_CFG2_DATABUS_WIDEN;
 
-	data_width = p->width;
-
 	/*
 	 * If widebus is disabled:
 	 * For uncompressed stream, the data is valid for the entire active
@@ -188,18 +186,15 @@ static void dpu_hw_intf_setup_timing_engine(struct dpu_hw_intf *intf,
 	 * For the compression mode in DP case, the p->width is already
 	 * adjusted in drm_mode_to_intf_timing_params().
 	 */
-	if (p->compression_en && !dp_intf) {
-		if (p->wide_bus_en)
-			data_width = DIV_ROUND_UP(p->dce_bytes_per_line, 6);
-		else
-			data_width = DIV_ROUND_UP(p->dce_bytes_per_line, 3);
-	} else if (p->wide_bus_en && !dp_intf) {
-		data_width = p->width >> 1;
-	}
+	if (p->compression_en && dp_intf && p->dce_bytes_per_line)
+		data_width = DIV_ROUND_UP(p->dce_bytes_per_line,
+					  p->wide_bus_en ? 6 : 3);
+	else if (p->wide_bus_en && !dp_intf)
+ 		data_width = p->width >> 1;
+	else
+		data_width = p->width;
 
-	/* TODO: handle DSC+DP case, we only handle DSC+DSI case so far */
-	if (p->compression_en && !dp_intf &&
-	    intf->mdss_ver->core_major_ver >= 7)
+	if (p->compression_en && intf->mdss_ver->core_major_ver >= 7)
 		intf_cfg2 |= INTF_CFG2_DCE_DATA_COMPRESS;
 
 	hsync_data_start_x = hsync_start_x;
@@ -219,6 +214,12 @@ static void dpu_hw_intf_setup_timing_engine(struct dpu_hw_intf *intf,
 
 		active_hctl = (active_h_end << 16) | active_h_start;
 		display_hctl = active_hctl;
+
+		if (p->compression_en) {
+			active_data_hctl = ((hsync_start_x + p->extra_dto_cycles) << 16) |
+					   hsync_start_x;
+			display_data_hctl = active_data_hctl;
+		}
 
 		intf_cfg |= INTF_CFG_ACTIVE_H_EN | INTF_CFG_ACTIVE_V_EN;
 	}
