@@ -10,6 +10,7 @@
 
 #include <linux/auxiliary_bus.h>
 #include <linux/bitops.h>
+#include <linux/etherdevice.h>
 #include <linux/iopoll.h>
 #include <linux/irqdomain.h>
 #include <linux/irqchip/chained_irq.h>
@@ -760,6 +761,12 @@ static int tc956x_dwmac_probe(struct auxiliary_device *adev,
 		goto err_put_mdio;
 	}
 
+	ret = device_get_mac_address(dev, td->res.mac);
+	if (ret == -EPROBE_DEFER) {
+		ret = dev_err_probe(dev, ret, "failed to get MAC address\n");
+		goto err_resources;
+	}
+
 	/* Put the MAC in a known initial state, then enable it */
 	tc956x_mac_init_state(td);
 	tc956x_mac_enable(td);
@@ -774,6 +781,7 @@ static int tc956x_dwmac_probe(struct auxiliary_device *adev,
 
 err_disable_mac:
 	tc956x_mac_disable(td);
+err_resources:
 	tc956x_stmmac_resources_exit(td);
 err_put_mdio:
 	of_node_put(td->plat->mdio_node);
