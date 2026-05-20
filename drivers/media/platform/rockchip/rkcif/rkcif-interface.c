@@ -185,6 +185,21 @@ static int rkcif_interface_apply_crop(struct rkcif_stream *stream,
 	return 0;
 }
 
+static int rkcif_interface_get_remote(struct v4l2_subdev *sd,
+				      struct media_pad **remote_pad,
+				      struct v4l2_subdev **remote_sd)
+{
+	*remote_pad = media_pad_remote_pad_first(&sd->entity.pads[RKCIF_IF_PAD_SINK]);
+	if (!*remote_pad)
+		return -ENOLINK;
+
+	*remote_sd = media_entity_to_v4l2_subdev((*remote_pad)->entity);
+	if (!*remote_sd)
+		return -ENODEV;
+
+	return 0;
+}
+
 static int rkcif_interface_enable_streams(struct v4l2_subdev *sd,
 					  struct v4l2_subdev_state *state,
 					  u32 pad, u64 streams_mask)
@@ -195,24 +210,31 @@ static int rkcif_interface_enable_streams(struct v4l2_subdev *sd,
 	struct v4l2_subdev *remote_sd;
 	struct media_pad *remote_pad;
 	u64 mask;
+	int ret;
 
-	remote_pad =
-		media_pad_remote_pad_first(&sd->entity.pads[RKCIF_IF_PAD_SINK]);
-	remote_sd = media_entity_to_v4l2_subdev(remote_pad->entity);
+	ret = rkcif_interface_get_remote(sd, &remote_pad, &remote_sd);
+	if (ret)
+		return ret;
 
 	/* DVP has one crop setting for all IDs */
 	if (interface->type == RKCIF_IF_DVP) {
 		stream = &interface->streams[RKCIF_ID0];
-		rkcif_interface_apply_crop(stream, state);
+		ret = rkcif_interface_apply_crop(stream, state);
+		if (ret)
+			return ret;
 	} else {
 		for_each_active_route(&state->routing, route) {
 			stream = &interface->streams[route->sink_stream];
-			rkcif_interface_apply_crop(stream, state);
+			ret = rkcif_interface_apply_crop(stream, state);
+			if (ret)
+				return ret;
 		}
 	}
 
 	mask = v4l2_subdev_state_xlate_streams(state, RKCIF_IF_PAD_SINK,
 					       RKCIF_IF_PAD_SRC, &streams_mask);
+	if (!mask)
+		return -EINVAL;
 
 	return v4l2_subdev_enable_streams(remote_sd, remote_pad->index, mask);
 }
@@ -224,13 +246,16 @@ static int rkcif_interface_disable_streams(struct v4l2_subdev *sd,
 	struct v4l2_subdev *remote_sd;
 	struct media_pad *remote_pad;
 	u64 mask;
+	int ret;
 
-	remote_pad =
-		media_pad_remote_pad_first(&sd->entity.pads[RKCIF_IF_PAD_SINK]);
-	remote_sd = media_entity_to_v4l2_subdev(remote_pad->entity);
+	ret = rkcif_interface_get_remote(sd, &remote_pad, &remote_sd);
+	if (ret)
+		return ret;
 
 	mask = v4l2_subdev_state_xlate_streams(state, RKCIF_IF_PAD_SINK,
 					       RKCIF_IF_PAD_SRC, &streams_mask);
+	if (!mask)
+		return -EINVAL;
 
 	return v4l2_subdev_disable_streams(remote_sd, remote_pad->index, mask);
 }
