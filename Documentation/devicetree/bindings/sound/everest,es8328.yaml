@@ -54,6 +54,13 @@ properties:
   HPVDD-supply:
     description: Regulator providing analog output voltage 3.3V
 
+  everest,es8388-capture-init:
+    type: boolean
+    description:
+      Apply the ES8388 vendor capture initialization sequence during the
+      ASoC prepare callback. This is intended only for boards that need the
+      extra ES8388-specific ADC bring-up sequence and is disabled by default.
+
   port:
     $ref: audio-graph-port.yaml#
     unevaluatedProperties: false

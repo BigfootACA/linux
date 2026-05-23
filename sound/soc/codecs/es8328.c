@@ -11,6 +11,7 @@
 #include <linux/delay.h>
 #include <linux/module.h>
 #include <linux/pm.h>
+#include <linux/property.h>
 #include <linux/regmap.h>
 #include <linux/slab.h>
 #include <linux/regulator/consumer.h>
@@ -80,6 +81,7 @@ struct es8328_priv {
 	struct clk *clk;
 	int playback_fs;
 	bool deemph;
+	bool apply_es8388_capture_init;
 	int mclkdiv2;
 	const struct snd_pcm_hw_constraint_list *sysclk_constraints;
 	const int *mclk_ratios;
@@ -454,6 +456,79 @@ static int es8328_startup(struct snd_pcm_substream *substream,
 	return 0;
 }
 
+/*
+ * Vendor (Rockchip) ES8323/ES8388 init sequence required for proper ADC
+ * capture on ES8388-variant chips.  The mainline driver, which targets the
+ * ES8328, leaves a handful of analog/digital registers in a state where the
+ * ADC produces no usable output ("all -1 samples").  Applying this full
+ * sequence after DAPM has powered up the capture path restores normal
+ * operation.  The sequence MUST be written via cache-bypassing regmap
+ * writes so it always reaches the hardware regardless of cache state.
+ */
+static const struct reg_sequence es8328_capture_init_seq[] = {
+	{ 0x00, 0x80 },		/* SCP reset */
+	{ 0x00, 0x00 },
+	{ 0x01, 0x60 },		/* CONTROL2: OVERCURRENT_ON | VCM_MOD_LOWPOWER */
+	{ 0x02, 0xF3 },		/* CHIPPOWER: powerdown for setup */
+	{ 0x02, 0xF0 },
+	{ 0x2B, 0x80 },		/* DAC mute */
+	{ 0x00, 0x36 },		/* CONTROL1: VMID_500k|ENREF|SAMEFS|DACMCLK_DAC */
+	{ 0x08, 0x00 },		/* MASTERMODE: slave */
+	{ 0x04, 0x00 },		/* DACPOWER off (capture only) */
+	{ 0x06, 0xC3 },		/* DAC reference */
+	{ 0x19, 0x02 },
+	{ 0x09, 0x88 },		/* ADCCONTROL1: mic gain +24dB L+R */
+	{ 0x0A, 0xF8 },		/* ADCCONTROL2: differential inputs */
+	{ 0x0B, 0x02 },
+	{ 0x0C, 0x4C },		/* ADCCONTROL4: 16-bit I2S */
+	{ 0x0D, 0x02 },		/* ADCCONTROL5: SR ratio */
+	{ 0x10, 0x00 },		/* LADC volume 0dB */
+	{ 0x11, 0x00 },		/* RADC volume 0dB */
+	{ 0x12, 0xea },		/* ALC */
+	{ 0x13, 0xc0 },
+	{ 0x14, 0x05 },
+	{ 0x15, 0x06 },
+	{ 0x16, 0x53 },
+	{ 0x17, 0x18 },		/* DAC control */
+	{ 0x18, 0x02 },
+	{ 0x1A, 0x00 },
+	{ 0x1B, 0x00 },
+	{ 0x27, 0xB8 },		/* DAC L mixer */
+	{ 0x2A, 0xB8 },		/* DAC R mixer */
+	{ 0x35, 0xA0 },
+	{ 0x2E, 0x1E },		/* output volumes */
+	{ 0x2F, 0x1E },
+	{ 0x30, 0x1E },
+	{ 0x31, 0x1E },
+	{ 0x03, 0x09 },		/* ADCPOWER: ADCs on, mic bias off */
+	{ 0x02, 0x00 },		/* CHIPPOWER: all blocks on */
+	{ 0x04, 0x3C },		/* DACPOWER */
+	{ 0x0F, 0x00 },
+};
+
+static int es8328_prepare(struct snd_pcm_substream *substream,
+			  struct snd_soc_dai *dai)
+{
+	struct snd_soc_component *component = dai->component;
+	struct es8328_priv *es8328 = snd_soc_component_get_drvdata(component);
+	int ret;
+
+	if (substream->stream != SNDRV_PCM_STREAM_CAPTURE ||
+	    !es8328->apply_es8388_capture_init)
+		return 0;
+
+	regcache_cache_bypass(es8328->regmap, true);
+	ret = regmap_multi_reg_write(es8328->regmap, es8328_capture_init_seq,
+				     ARRAY_SIZE(es8328_capture_init_seq));
+	regcache_cache_bypass(es8328->regmap, false);
+	if (ret)
+		dev_err(component->dev,
+			"failed to apply capture init sequence: %d\n", ret);
+	/* Drop cache so subsequent reads reflect actual hardware state. */
+	regcache_drop_region(es8328->regmap, 0, ES8328_REG_MAX);
+	return ret;
+}
+
 static int es8328_hw_params(struct snd_pcm_substream *substream,
 	struct snd_pcm_hw_params *params,
 	struct snd_soc_dai *dai)
@@ -725,6 +800,7 @@ static int es8328_set_bias_level(struct snd_soc_component *component,
 static const struct snd_soc_dai_ops es8328_dai_ops = {
 	.startup	= es8328_startup,
 	.hw_params	= es8328_hw_params,
+	.prepare	= es8328_prepare,
 	.mute_stream	= es8328_mute,
 	.set_sysclk	= es8328_set_sysclk,
 	.set_fmt	= es8328_set_dai_fmt,
@@ -893,6 +969,8 @@ int es8328_probe(struct device *dev, struct regmap *regmap)
 		return -ENOMEM;
 
 	es8328->regmap = regmap;
+	es8328->apply_es8388_capture_init =
+		device_property_read_bool(dev, "everest,es8388-capture-init");
 
 	for (i = 0; i < ARRAY_SIZE(es8328->supplies); i++)
 		es8328->supplies[i].supply = supply_names[i];
