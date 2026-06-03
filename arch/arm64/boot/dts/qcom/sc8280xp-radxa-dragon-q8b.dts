@@ -11,6 +11,10 @@
 #include "sc8280xp.dtsi"
 #include "sc8280xp-pmics.dtsi"
 
+/delete-node/ &pil_video_mem;
+/delete-node/ &pil_nsp1_mem;
+/delete-node/ &remoteproc_nsp1;
+
 / {
 	model = "Radxa Dragon Q8B";
 	compatible = "radxa,dragon-q8b", "qcom,sc8280xp";
@@ -171,11 +175,20 @@
 	};
 
 	reserved-memory {
+		iris_iova: iris-iova {
+			iommu-addresses = <&iris 0x0 0x0 0x0 0x25800000>;
+		};
+
 		linux,cma {
 			compatible = "shared-dma-pool";
 			size = <0x0 0x8000000>;
 			reusable;
 			linux,cma-default;
+		};
+
+		pil_video_mem: video-region@8c600000 {
+			reg = <0 0x8c600000 0 0x700000>;
+			no-map;
 		};
 	};
 
@@ -796,6 +809,13 @@
 &i2c21 {
 	pinctrl-0 = <&qup_i2c21_data_clk>;
 	pinctrl-names = "default";
+
+	status = "okay";
+};
+
+&iris {
+	firmware-name = "qcom/vpu/vpu20_p4_gen2_s6.mbn";
+	memory-region = <&pil_video_mem>, <&iris_iova>;
 
 	status = "okay";
 };
