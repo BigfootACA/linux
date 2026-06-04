@@ -259,7 +259,7 @@
 
 			trips {
 				vbat_alert0: trip-point0 {
-					temperature = <85000>;
+					temperature = <80000>;
 					hysteresis = <2000>;
 					type = "passive";
 				};
