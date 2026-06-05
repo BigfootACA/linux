@@ -27057,6 +27057,8 @@ S:	Maintained
 F:	Documentation/devicetree/bindings/net/toshiba,tc956x-dwmac.yaml
 F:	drivers/gpio/gpio-tc956x.c
 F:	drivers/misc/tc956x_pci.c
+F:	drivers/net/ethernet/stmicro/stmmac/dwmac-tc956x.c
+F:	include/soc/toshiba/tc956x-dwmac.h
 
 TOSHIBA WMI HOTKEYS DRIVER
 M:	Azael Avalos <coproscefalo@gmail.com>
