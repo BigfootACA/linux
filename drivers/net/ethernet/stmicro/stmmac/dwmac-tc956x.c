@@ -605,7 +605,7 @@ static int tc956x_plat_dat_init(struct tc956x_data *td)
 	 * represents "divide by 62" and gets the best rate under 2.5 MHz.
 	 */
 	plat->clk_csr = 0;	/* MDC clock = clk_csr_i / 62 */
-	plat->default_an_inband = true;
+	plat->mdio_bus_data->default_an_inband = true;
 	plat->force_sf_dma_mode = true;
 	plat->max_speed = speed;
 	plat->unicast_filter_entries = 32;
