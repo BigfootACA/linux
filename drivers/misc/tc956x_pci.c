@@ -272,8 +272,34 @@ static int adev_device_add(struct device *dev, const char *name, u32 id,
 	return devm_add_action_or_reset(dev, adev_remove, adev);
 }
 
-/* Returns a reference to the GPIO's DT sub-node, or a null pointer */
-static struct device_node *dev_node_child_gpio(struct device *dev)
+static bool dev_node_has_mdio_child(struct device_node *np)
+{
+	struct device_node *mdio;
+
+	mdio = of_get_child_by_name(np, "mdio");
+	if (!mdio)
+		return false;
+
+	of_node_put(mdio);
+
+	return true;
+}
+
+static bool dev_node_is_gpio(struct device *dev, struct device_node *np)
+{
+	if (!of_property_present(np, "gpio-controller"))
+		return false;
+
+	if (!of_property_present(np, "#gpio-cells")) {
+		dev_err(dev, "gpio node contains no #gpio-cells property\n");
+		return false;
+	}
+
+	return true;
+}
+
+/* Returns a reference to the GPIO's DT node, or a null pointer */
+static struct device_node *dev_node_gpio(struct device *dev)
 {
 	struct device_node *np;
 
@@ -281,19 +307,45 @@ static struct device_node *dev_node_child_gpio(struct device *dev)
 	for_each_child_of_node(dev->of_node, np)
 		if (!strcmp(np->name, "gpio"))
 			break;
-	if (!np)
+	if (np) {
+		if (dev_node_is_gpio(dev, np))
+			return np;
+
+		of_node_put(np);
+
 		return NULL;
+	}
 
-	/* If it's there, make sure it contains its required properties */
-	if (!of_property_present(np, "gpio-controllerX"))
-		dev_err(dev, "gpio node contains no gpio-contrller property\n");
-	else if (!of_property_present(np, "#gpio-cellsX"))
-		dev_err(dev, "gpio node contains no #gpio-cells property\n");
-	else
-		return np;	/* Found a GPIO sub-node */
+	/*
+	 * The original TC956x binding placed the GPIO controller properties on
+	 * PCI function 0 itself. Keep accepting that form so existing DTs do not
+	 * need to grow a gpio sub-node.
+	 */
+	if (dev_node_is_gpio(dev, dev->of_node))
+		return of_node_get(dev->of_node);
 
-	/* If we reported a problem, pretend there was no gpio node */
-	of_node_put(np);
+	return NULL;
+}
+
+/* Returns a reference to the XGMAC's DT node, or a null pointer */
+static struct device_node *dev_node_xgmac(struct device *dev)
+{
+	struct device_node *np;
+
+	for_each_child_of_node(dev->of_node, np)
+		if (!strcmp(np->name, "ethernet"))
+			return np;
+
+	/*
+	 * The original TC956x binding placed Ethernet controller properties on
+	 * the PCI function node. Treat that node as the XGMAC node when it has
+	 * the old shape.
+	 */
+	if (of_property_present(dev->of_node, "phy-mode") ||
+	    of_property_present(dev->of_node, "phy-connection-type") ||
+	    of_property_present(dev->of_node, "phy-handle") ||
+	    dev_node_has_mdio_child(dev->of_node))
+		return of_node_get(dev->of_node);
 
 	return NULL;
 }
@@ -305,7 +357,7 @@ static int chip_gpio_adev_add(struct tc956x_chip *chip)
 	struct device_node *np;
 	struct regmap *regmap;
 
-	np = dev_node_child_gpio(dev);
+	np = dev_node_gpio(dev);
 	if (!np)
 		return 0;
 
@@ -333,10 +385,7 @@ static int function_xgmac_adev_add(struct pci_dev *pdev,
 	if (mac_id > 1)
 		return -EINVAL;
 
-	/* If there's no ethernet subnode, there's nothing to do */
-	for_each_child_of_node(dev->of_node, np)
-		if (!strcmp(np->name, "ethernet"))
-			break;
+	np = dev_node_xgmac(dev);
 	if (!np)
 		return 0;
 
