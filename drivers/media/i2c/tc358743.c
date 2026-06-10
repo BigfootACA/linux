@@ -81,6 +81,79 @@ static const struct v4l2_dv_timings_cap tc358743_timings_cap = {
 			V4L2_DV_BT_CAP_CUSTOM)
 };
 
+struct tc358743_mode {
+	u32 width;
+	u32 height;
+	struct v4l2_fract max_fps;
+};
+
+static const struct tc358743_mode supported_modes[] = {
+	{
+		.width = 1920,
+		.height = 1080,
+		.max_fps = {
+			.numerator = 10000,
+			.denominator = 600000,
+		},
+	}, {
+		.width = 1920,
+		.height = 1080,
+		.max_fps = {
+			.numerator = 10000,
+			.denominator = 500000,
+		},
+	}, {
+		.width = 1920,
+		.height = 1080,
+		.max_fps = {
+			.numerator = 10000,
+			.denominator = 300000,
+		},
+	}, {
+		.width = 1280,
+		.height = 720,
+		.max_fps = {
+			.numerator = 10000,
+			.denominator = 600000,
+		},
+	}, {
+		.width = 1280,
+		.height = 720,
+		.max_fps = {
+			.numerator = 10000,
+			.denominator = 300000,
+		},
+	}, {
+		.width = 720,
+		.height = 576,
+		.max_fps = {
+			.numerator = 10000,
+			.denominator = 500000,
+		},
+	}, {
+		.width = 720,
+		.height = 480,
+		.max_fps = {
+			.numerator = 10000,
+			.denominator = 600000,
+		},
+	}, {
+		.width = 640,
+		.height = 480,
+		.max_fps = {
+			.numerator = 10000,
+			.denominator = 600000,
+		},
+	}, {
+		.width = 640,
+		.height = 480,
+		.max_fps = {
+			.numerator = 10000,
+			.denominator = 300000,
+		},
+	},
+};
+
 struct tc358743_state {
 	struct tc358743_platform_data pdata;
 	struct v4l2_mbus_config_mipi_csi2 bus;
@@ -116,6 +189,8 @@ struct tc358743_state {
 	struct gpio_desc *reset_gpio;
 
 	struct cec_adapter *cec_adap;
+
+	const struct tc358743_mode *cur_mode;
 };
 
 static void tc358743_enable_interrupts(struct v4l2_subdev *sd,
@@ -1843,6 +1918,41 @@ static u32 tc358743_g_colorspace(u32 code)
 	}
 }
 
+static int tc358743_enum_frame_sizes(struct v4l2_subdev *sd,
+				   struct v4l2_subdev_state *sd_state,
+				   struct v4l2_subdev_frame_size_enum *fse)
+{
+	if (fse->index >= ARRAY_SIZE(supported_modes))
+		return -EINVAL;
+
+	if (fse->code != MEDIA_BUS_FMT_UYVY8_2X8 &&
+	    fse->code != MEDIA_BUS_FMT_UYVY8_1X16 &&
+	    fse->code != MEDIA_BUS_FMT_RGB888_1X24)
+		return -EINVAL;
+
+	fse->min_width  = supported_modes[fse->index].width;
+	fse->max_width  = supported_modes[fse->index].width;
+	fse->max_height = supported_modes[fse->index].height;
+	fse->min_height = supported_modes[fse->index].height;
+
+	return 0;
+}
+
+static int tc358743_enum_frame_interval(struct v4l2_subdev *sd,
+				struct v4l2_subdev_state *sd_state,
+				struct v4l2_subdev_frame_interval_enum *fie)
+{
+	if (fie->index >= ARRAY_SIZE(supported_modes))
+		return -EINVAL;
+
+	fie->code = MEDIA_BUS_FMT_UYVY8_1X16;
+
+	fie->width = supported_modes[fie->index].width;
+	fie->height = supported_modes[fie->index].height;
+	fie->interval = supported_modes[fie->index].max_fps;
+	return 0;
+}
+
 static int tc358743_get_fmt(struct v4l2_subdev *sd,
 		struct v4l2_subdev_state *sd_state,
 		struct v4l2_subdev_format *format)
@@ -1862,11 +1972,39 @@ static int tc358743_get_fmt(struct v4l2_subdev *sd,
 	return 0;
 }
 
+static int tc358743_get_reso_dist(const struct tc358743_mode *mode,
+				 struct v4l2_mbus_framefmt *framefmt)
+{
+	return abs(mode->width - framefmt->width) +
+		   abs(mode->height - framefmt->height);
+}
+
+static const struct tc358743_mode *
+tc358743_find_best_fit(struct v4l2_subdev_format *fmt)
+{
+	struct v4l2_mbus_framefmt *framefmt = &fmt->format;
+	int dist;
+	int cur_best_fit = 0;
+	int cur_best_fit_dist = -1;
+	unsigned int i;
+
+	for (i = 0; i < ARRAY_SIZE(supported_modes); i++) {
+		dist = tc358743_get_reso_dist(&supported_modes[i], framefmt);
+		if (cur_best_fit_dist == -1 || dist < cur_best_fit_dist) {
+			cur_best_fit_dist = dist;
+			cur_best_fit = i;
+		}
+	}
+
+	return &supported_modes[cur_best_fit];
+}
+
 static int tc358743_set_fmt(struct v4l2_subdev *sd,
 		struct v4l2_subdev_state *sd_state,
 		struct v4l2_subdev_format *format)
 {
 	struct tc358743_state *state = to_state(sd);
+	const struct tc358743_mode *mode;
 
 	u32 code = format->format.code; /* is overwritten by get_fmt */
 	int ret = tc358743_get_fmt(sd, sd_state, format);
@@ -1886,9 +2024,32 @@ static int tc358743_set_fmt(struct v4l2_subdev *sd,
 	state->mbus_fmt_code = format->format.code;
 
 	enable_stream(sd, false);
+	mode = tc358743_find_best_fit(format);
+	state->cur_mode = mode;
+
 	tc358743_set_pll(sd);
 	tc358743_set_csi(sd);
 	tc358743_set_csi_color_space(sd);
+
+	return 0;
+}
+
+static int tc358743_get_selection(struct v4l2_subdev *sd,
+				  struct v4l2_subdev_state *sd_state,
+				  struct v4l2_subdev_selection *sel)
+{
+	struct tc358743_state *state = to_state(sd);
+
+	if (sel->which != V4L2_SUBDEV_FORMAT_ACTIVE)
+		return -EINVAL;
+	/* Only CROP, CROP_DEFAULT and CROP_BOUNDS are supported */
+	if (sel->target > V4L2_SEL_TGT_CROP_BOUNDS)
+		return -EINVAL;
+
+	sel->r.left     = 0;
+	sel->r.top      = 0;
+	sel->r.width    = state->timings.bt.width;
+	sel->r.height   = state->timings.bt.height;
 
 	return 0;
 }
@@ -1978,6 +2139,19 @@ static int tc358743_s_edid(struct v4l2_subdev *sd,
 	return 0;
 }
 
+static int tc358743_g_frame_interval(struct v4l2_subdev *sd,
+				     struct v4l2_subdev_state *sd_state,
+				     struct v4l2_subdev_frame_interval *fi)
+{      struct tc358743_state *state = to_state(sd);
+	const struct tc358743_mode *mode = state->cur_mode;
+
+	mutex_lock(&state->confctl_mutex);
+	fi->interval = mode->max_fps;
+	mutex_unlock(&state->confctl_mutex);
+
+	return 0;
+}
+
 /* -------------------------------------------------------------------------- */
 
 static const struct v4l2_subdev_core_ops tc358743_core_ops = {
@@ -1998,6 +2172,9 @@ static const struct v4l2_subdev_video_ops tc358743_video_ops = {
 
 static const struct v4l2_subdev_pad_ops tc358743_pad_ops = {
 	.enum_mbus_code = tc358743_enum_mbus_code,
+	.enum_frame_size = tc358743_enum_frame_sizes,
+	.enum_frame_interval = tc358743_enum_frame_interval,
+	.get_selection = tc358743_get_selection,
 	.set_fmt = tc358743_set_fmt,
 	.get_fmt = tc358743_get_fmt,
 	.get_edid = tc358743_g_edid,
@@ -2008,6 +2185,7 @@ static const struct v4l2_subdev_pad_ops tc358743_pad_ops = {
 	.enum_dv_timings = tc358743_enum_dv_timings,
 	.dv_timings_cap = tc358743_dv_timings_cap,
 	.get_mbus_config = tc358743_get_mbus_config,
+	.get_frame_interval = tc358743_g_frame_interval,
 };
 
 static const struct v4l2_subdev_ops tc358743_ops = {
@@ -2236,6 +2414,7 @@ static int tc358743_probe(struct i2c_client *client)
 		return -ENOMEM;
 
 	state->i2c_client = client;
+	state->cur_mode = &supported_modes[0];
 
 	/* platform data */
 	if (pdata) {
