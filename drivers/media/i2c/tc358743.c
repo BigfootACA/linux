@@ -166,6 +166,7 @@ struct tc358743_state {
 	struct v4l2_fwnode_endpoint csi_vep;
 
 	/* controls */
+	struct v4l2_ctrl *link_freq;
 	struct v4l2_ctrl *detect_tx_5v_ctrl;
 	struct v4l2_ctrl *audio_sampling_rate_ctrl;
 	struct v4l2_ctrl *audio_present_ctrl;
@@ -2441,7 +2442,11 @@ static int tc358743_probe(struct i2c_client *client)
 	}
 
 	/* control handlers */
-	v4l2_ctrl_handler_init(&state->hdl, 3);
+	v4l2_ctrl_handler_init(&state->hdl, 4);
+
+	state->link_freq = v4l2_ctrl_new_int_menu(&state->hdl, NULL,
+			V4L2_CID_LINK_FREQ, 0, 0,
+			state->csi_vep.link_frequencies);
 
 	state->detect_tx_5v_ctrl = v4l2_ctrl_new_std(&state->hdl, NULL,
 			V4L2_CID_DV_RX_POWER_PRESENT, 0, 1, 0, 0);
