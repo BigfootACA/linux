@@ -800,6 +800,7 @@ static void tc358743_set_csi_color_space(struct v4l2_subdev *sd)
 	struct tc358743_state *state = to_state(sd);
 
 	switch (state->mbus_fmt_code) {
+	case MEDIA_BUS_FMT_UYVY8_2X8:
 	case MEDIA_BUS_FMT_UYVY8_1X16:
 		v4l2_dbg(2, debug, sd, "%s: YCbCr 422 16-bit\n", __func__);
 		i2c_wr8_and_or(sd, VOUT_SET2,
@@ -835,7 +836,8 @@ static unsigned tc358743_num_csi_lanes_needed(struct v4l2_subdev *sd)
 	struct v4l2_bt_timings *bt = &state->timings.bt;
 	struct tc358743_platform_data *pdata = &state->pdata;
 	u32 bits_pr_pixel =
-		(state->mbus_fmt_code == MEDIA_BUS_FMT_UYVY8_1X16) ?  16 : 24;
+		(state->mbus_fmt_code == MEDIA_BUS_FMT_UYVY8_1X16 ||
+		state->mbus_fmt_code == MEDIA_BUS_FMT_UYVY8_2X8) ?  16 : 24;
 	u32 bps = bt->width * bt->height * fps(bt) * bits_pr_pixel;
 	u32 bps_pr_lane = (pdata->refclk_hz / pdata->pll_prd) * pdata->pll_fbd;
 
@@ -1475,6 +1477,7 @@ static int tc358743_log_status(struct v4l2_subdev *sd)
 			(i2c_rd16(sd, CSI_STATUS) & MASK_S_HLT) ?
 			"yes" : "no");
 	v4l2_info(sd, "Color space: %s\n",
+			state->mbus_fmt_code == MEDIA_BUS_FMT_UYVY8_2X8 ||
 			state->mbus_fmt_code == MEDIA_BUS_FMT_UYVY8_1X16 ?
 			"YCbCr 422 16-bit" :
 			state->mbus_fmt_code == MEDIA_BUS_FMT_RGB888_1X24 ?
@@ -1831,6 +1834,7 @@ static u32 tc358743_g_colorspace(u32 code)
 	switch (code) {
 	case MEDIA_BUS_FMT_RGB888_1X24:
 		return V4L2_COLORSPACE_SRGB;
+	case MEDIA_BUS_FMT_UYVY8_2X8:
 	case MEDIA_BUS_FMT_UYVY8_1X16:
 		return V4L2_COLORSPACE_SMPTE170M;
 	default:
@@ -1867,7 +1871,8 @@ static int tc358743_set_fmt(struct v4l2_subdev *sd,
 	int ret = tc358743_get_fmt(sd, sd_state, format);
 
 	if (code == MEDIA_BUS_FMT_RGB888_1X24 ||
-	    code == MEDIA_BUS_FMT_UYVY8_1X16)
+	    code == MEDIA_BUS_FMT_UYVY8_1X16 ||
+	    code == MEDIA_BUS_FMT_UYVY8_2X8)
 		format->format.code = code;
 	format->format.colorspace = tc358743_g_colorspace(format->format.code);
 
