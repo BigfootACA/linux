@@ -284,6 +284,48 @@ static void i2c_wr32(struct v4l2_subdev *sd, u16 reg, u32 val)
 	i2c_wrreg(sd, reg, val, 4);
 }
 
+static void i2c_rd_with_quirks(struct v4l2_subdev *sd, u16 reg, u8 *values, u32 n)
+{
+	struct tc358743_state *state = to_state(sd);
+	struct i2c_client *client = state->i2c_client;
+	const struct i2c_adapter_quirks *quirks =
+		client->adapter->quirks;
+	int len;
+	int i;
+
+	if (!quirks || quirks->max_read_len < 2 || n <= quirks->max_read_len - 2) {
+		i2c_rd(sd, reg, values, n);
+		return;
+	}
+
+	for (i = 0; i < n; ) {
+		len = MIN(quirks->max_read_len - 2, n - i);
+		i2c_rd(sd, reg + i, &values[i], len);
+		i += len;
+	}
+}
+
+static void i2c_wr_with_quirks(struct v4l2_subdev *sd, u16 reg, u8 *values, u32 n)
+{
+	struct tc358743_state *state = to_state(sd);
+	struct i2c_client *client = state->i2c_client;
+	const struct i2c_adapter_quirks *quirks =
+		client->adapter->quirks;
+	int len;
+	int i;
+
+	if (!quirks || quirks->max_write_len < 2 || n <= quirks->max_write_len - 2) {
+		i2c_wr(sd, reg, values, n);
+		return;
+	}
+
+	for (i = 0; i < n; ) {
+		len = MIN(quirks->max_write_len - 2, n - i);
+		i2c_wr(sd, reg + i, &values[i], len);
+		i += len;
+	}
+}
+
 /* --------------- STATUS --------------- */
 
 static inline bool is_hdmi(struct v4l2_subdev *sd)
@@ -482,19 +524,19 @@ tc358743_debugfs_if_read(u32 type, void *priv, struct file *filp,
 
 	switch (type) {
 	case V4L2_DEBUGFS_IF_AVI:
-		i2c_rd(sd, PK_AVI_0HEAD, buf, PK_AVI_LEN);
+		i2c_rd_with_quirks(sd, PK_AVI_0HEAD, buf, PK_AVI_LEN);
 		break;
 	case V4L2_DEBUGFS_IF_AUDIO:
-		i2c_rd(sd, PK_AUD_0HEAD, buf, PK_AUD_LEN);
+		i2c_rd_with_quirks(sd, PK_AUD_0HEAD, buf, PK_AUD_LEN);
 		break;
 	case V4L2_DEBUGFS_IF_SPD:
-		i2c_rd(sd, PK_SPD_0HEAD, buf, PK_SPD_LEN);
+		i2c_rd_with_quirks(sd, PK_SPD_0HEAD, buf, PK_SPD_LEN);
 		break;
 	case V4L2_DEBUGFS_IF_HDMI:
-		i2c_rd(sd, PK_VS_0HEAD, buf, PK_VS_LEN);
+		i2c_rd_with_quirks(sd, PK_VS_0HEAD, buf, PK_VS_LEN);
 		break;
 	case V4L2_DEBUGFS_IF_DRM:
-		i2c_rd(sd, PK_ACP_0HEAD, buf, PK_ACP_LEN);
+		i2c_rd_with_quirks(sd, PK_ACP_0HEAD, buf, PK_ACP_LEN);
 		break;
 	default:
 		return 0;
@@ -533,23 +575,23 @@ static void print_infoframes(struct v4l2_subdev *sd)
 		return;
 	}
 
-	i2c_rd(sd, PK_AVI_0HEAD, buffer, PK_AVI_LEN);
+	i2c_rd_with_quirks(sd, PK_AVI_0HEAD, buffer, PK_AVI_LEN);
 	if (hdmi_infoframe_unpack(&frame, buffer, sizeof(buffer)) >= 0)
 		hdmi_infoframe_log(KERN_INFO, dev, &frame);
 
-	i2c_rd(sd, PK_VS_0HEAD, buffer, PK_VS_LEN);
+	i2c_rd_with_quirks(sd, PK_VS_0HEAD, buffer, PK_VS_LEN);
 	if (hdmi_infoframe_unpack(&frame, buffer, sizeof(buffer)) >= 0)
 		hdmi_infoframe_log(KERN_INFO, dev, &frame);
 
-	i2c_rd(sd, PK_AUD_0HEAD, buffer, PK_AUD_LEN);
+	i2c_rd_with_quirks(sd, PK_AUD_0HEAD, buffer, PK_AUD_LEN);
 	if (hdmi_infoframe_unpack(&frame, buffer, sizeof(buffer)) >= 0)
 		hdmi_infoframe_log(KERN_INFO, dev, &frame);
 
-	i2c_rd(sd, PK_SPD_0HEAD, buffer, PK_SPD_LEN);
+	i2c_rd_with_quirks(sd, PK_SPD_0HEAD, buffer, PK_SPD_LEN);
 	if (hdmi_infoframe_unpack(&frame, buffer, sizeof(buffer)) >= 0)
 		hdmi_infoframe_log(KERN_INFO, dev, &frame);
 
-	i2c_rd(sd, PK_ACP_0HEAD, buffer, PK_ACP_LEN);
+	i2c_rd_with_quirks(sd, PK_ACP_0HEAD, buffer, PK_ACP_LEN);
 	if (buffer[0] == packet_type) {
 		if (packet_type < 0x80)
 			v4l2_info(sd, "Packet: %*ph\n", PK_ACP_LEN, buffer);
@@ -560,17 +602,17 @@ static void print_infoframes(struct v4l2_subdev *sd)
 			hdmi_infoframe_log(KERN_INFO, dev, &frame);
 	}
 
-	i2c_rd(sd, PK_MS_0HEAD, buffer, PK_MS_LEN);
+	i2c_rd_with_quirks(sd, PK_MS_0HEAD, buffer, PK_MS_LEN);
 	if (buffer[2] && buffer[2] + 3 <= PK_MS_LEN)
 		v4l2_info(sd, "MPEG Source InfoFrame: %*ph\n",
 			  buffer[2] + 3, buffer);
 
-	i2c_rd(sd, PK_ISRC1_0HEAD, buffer, PK_ISRC1_LEN);
+	i2c_rd_with_quirks(sd, PK_ISRC1_0HEAD, buffer, PK_ISRC1_LEN);
 	if (buffer[0] == 0x05)
 		v4l2_info(sd, "ISRC1 Packet: %*ph\n",
 			  PK_ISRC1_LEN, buffer);
 
-	i2c_rd(sd, PK_ISRC2_0HEAD, buffer, PK_ISRC2_LEN);
+	i2c_rd_with_quirks(sd, PK_ISRC2_0HEAD, buffer, PK_ISRC2_LEN);
 	if (buffer[0] == 0x06)
 		v4l2_info(sd, "ISRC2 Packet: %*ph\n",
 			  PK_ISRC2_LEN, buffer);
@@ -1870,8 +1912,8 @@ static int tc358743_g_edid(struct v4l2_subdev *sd,
 	if (edid->start_block + edid->blocks > state->edid_blocks_written)
 		edid->blocks = state->edid_blocks_written - edid->start_block;
 
-	i2c_rd(sd, EDID_RAM + (edid->start_block * EDID_BLOCK_SIZE), edid->edid,
-			edid->blocks * EDID_BLOCK_SIZE);
+	i2c_rd_with_quirks(sd, EDID_RAM + (edid->start_block * EDID_BLOCK_SIZE), edid->edid,
+			   edid->blocks * EDID_BLOCK_SIZE);
 
 	return 0;
 }
@@ -1918,7 +1960,7 @@ static int tc358743_s_edid(struct v4l2_subdev *sd,
 	}
 
 	for (i = 0; i < edid_len; i += EDID_BLOCK_SIZE)
-		i2c_wr(sd, EDID_RAM + i, edid->edid + i, EDID_BLOCK_SIZE);
+		i2c_wr_with_quirks(sd, EDID_RAM + i, edid->edid + i, EDID_BLOCK_SIZE);
 
 	state->edid_blocks_written = edid->blocks;
 
