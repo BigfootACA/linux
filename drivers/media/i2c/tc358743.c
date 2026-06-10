@@ -90,6 +90,7 @@ struct tc358743_state {
 	struct i2c_client *i2c_client;
 	/* CONFCTL is modified in ops and tc358743_hdmi_sys_int_handler */
 	struct mutex confctl_mutex;
+	struct v4l2_fwnode_endpoint csi_vep;
 
 	/* controls */
 	struct v4l2_ctrl *detect_tx_5v_ctrl;
@@ -2054,7 +2055,6 @@ static void tc358743_gpio_reset(struct tc358743_state *state)
 static int tc358743_probe_of(struct tc358743_state *state)
 {
 	struct device *dev = &state->i2c_client->dev;
-	struct v4l2_fwnode_endpoint endpoint = { .bus_type = 0 };
 	struct device_node *ep;
 	struct clk *refclk;
 	u32 bps_pr_lane;
@@ -2071,27 +2071,27 @@ static int tc358743_probe_of(struct tc358743_state *state)
 		return -EINVAL;
 	}
 
-	ret = v4l2_fwnode_endpoint_alloc_parse(of_fwnode_handle(ep), &endpoint);
+	ret = v4l2_fwnode_endpoint_alloc_parse(of_fwnode_handle(ep), &state->csi_vep);
 	if (ret) {
 		dev_err(dev, "failed to parse endpoint\n");
 		goto put_node;
 	}
 
-	if (endpoint.bus_type != V4L2_MBUS_CSI2_DPHY ||
-	    endpoint.bus.mipi_csi2.num_data_lanes == 0 ||
-	    endpoint.nr_of_link_frequencies == 0) {
+	if (state->csi_vep.bus_type != V4L2_MBUS_CSI2_DPHY ||
+	    state->csi_vep.bus.mipi_csi2.num_data_lanes == 0 ||
+	    state->csi_vep.nr_of_link_frequencies == 0) {
 		dev_err(dev, "missing CSI-2 properties in endpoint\n");
 		ret = -EINVAL;
 		goto free_endpoint;
 	}
 
-	if (endpoint.bus.mipi_csi2.num_data_lanes > 4) {
+	if (state->csi_vep.bus.mipi_csi2.num_data_lanes > 4) {
 		dev_err(dev, "invalid number of lanes\n");
 		ret = -EINVAL;
 		goto free_endpoint;
 	}
 
-	state->bus = endpoint.bus.mipi_csi2;
+	state->bus = state->csi_vep.bus.mipi_csi2;
 
 	ret = clk_prepare_enable(refclk);
 	if (ret) {
@@ -2136,7 +2136,7 @@ static int tc358743_probe_of(struct tc358743_state *state)
 	 * The default is 594 Mbps for 4-lane 1080p60 or 2-lane 720p60.
 	 * 972 Mbps allows 1080P50 UYVY over 2-lane.
 	 */
-	bps_pr_lane = 2 * endpoint.link_frequencies[0];
+	bps_pr_lane = 2 * state->csi_vep.link_frequencies[0];
 	if (bps_pr_lane < 62500000U || bps_pr_lane > 1000000000U) {
 		dev_err(dev, "unsupported bps per lane: %u bps\n", bps_pr_lane);
 		ret = -EINVAL;
@@ -2197,12 +2197,12 @@ static int tc358743_probe_of(struct tc358743_state *state)
 		tc358743_gpio_reset(state);
 
 	ret = 0;
-	goto free_endpoint;
+	goto put_node;
 
 disable_clk:
 	clk_disable_unprepare(refclk);
 free_endpoint:
-	v4l2_fwnode_endpoint_free(&endpoint);
+	v4l2_fwnode_endpoint_free(&state->csi_vep);
 put_node:
 	of_node_put(ep);
 	return ret;
@@ -2397,6 +2397,7 @@ static void tc358743_remove(struct i2c_client *client)
 	v4l2_debugfs_if_free(state->infoframes);
 	debugfs_remove_recursive(state->debugfs_dir);
 	cec_unregister_adapter(state->cec_adap);
+	v4l2_fwnode_endpoint_free(&state->csi_vep);
 	v4l2_async_unregister_subdev(sd);
 	v4l2_device_unregister_subdev(sd);
 	mutex_destroy(&state->confctl_mutex);
