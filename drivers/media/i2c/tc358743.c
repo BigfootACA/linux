@@ -917,8 +917,9 @@ static unsigned tc358743_num_csi_lanes_needed(struct v4l2_subdev *sd)
 		state->mbus_fmt_code == MEDIA_BUS_FMT_UYVY8_2X8) ?  16 : 24;
 	u32 bps = bt->width * bt->height * fps(bt) * bits_pr_pixel;
 	u32 bps_pr_lane = (pdata->refclk_hz / pdata->pll_prd) * pdata->pll_fbd;
+	u32 want_lanes = DIV_ROUND_UP(bps, bps_pr_lane);
 
-	return DIV_ROUND_UP(bps, bps_pr_lane);
+	return MAX(state->csi_vep.bus.mipi_csi2.num_data_lanes, want_lanes);
 }
 
 static void tc358743_set_csi(struct v4l2_subdev *sd)
