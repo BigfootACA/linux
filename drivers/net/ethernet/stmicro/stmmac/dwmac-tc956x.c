@@ -41,6 +41,10 @@
 #define SP_SEL_SGMII_1000M		5
 #define SP_SEL_SGMII_100M		6
 #define SP_SEL_SGMII_10M		7
+#define SP_SEL_USXGMII_10G		8
+#define SP_SEL_USXGMII_100M_10G		9
+#define SP_SEL_USXGMII_5G		10
+#define SP_SEL_USXGMII_2500M		13
 #define EMAC_PHY_INF_SEL_MASK		GENMASK(5, 4)
 #define PCS_CLK_PHY			1	/* Clock from PHY */
 #define EMAC_INV_SGM_SIG_DET		BIT(6)	/* 1 = polarity inverted */
@@ -72,6 +76,11 @@ enum msigen_hwirq {
 
 /* Offset to the PMATOP memory block, relative to the EMAC address range */
 #define DWMAC_PMATOP_OFFSET			0x4000
+
+/* TC956X SFR offsets used for USXGMII PMA/lane setup */
+#define TC956X_GLUE_PHY_REG_ACCESS_CTRL		0x2c030
+#define TC956X_PHY_CORE0_GL_LANE_ACCESS		0x28000
+#define TC956X_PMA_LN_PCS2PMA_PHYMODE_R2	0x2b268
 
 #define PMA_CML_GL_PM_CFG0			0x01b8
 
@@ -135,6 +144,12 @@ struct tc956x_mac_speed {
 };
 
 static struct tc956x_mac_speed mac_speed[] = {
+	{ PHY_INTERFACE_MODE_USXGMII,	SPEED_10000, SP_SEL_USXGMII_10G },
+	{ PHY_INTERFACE_MODE_USXGMII,	SPEED_5000,  SP_SEL_USXGMII_5G },
+	{ PHY_INTERFACE_MODE_USXGMII,	SPEED_2500,  SP_SEL_USXGMII_2500M },
+	{ PHY_INTERFACE_MODE_USXGMII,	SPEED_1000,  SP_SEL_USXGMII_10G },
+	{ PHY_INTERFACE_MODE_USXGMII,	SPEED_100,   SP_SEL_USXGMII_100M_10G },
+	{ PHY_INTERFACE_MODE_USXGMII,	SPEED_10,    SP_SEL_USXGMII_100M_10G },
 	{ PHY_INTERFACE_MODE_2500BASEX,	SPEED_2500,  SP_SEL_2500BASEX },
 	/*
 	 * QCA808x switches its host interface to 2500BASE-X at 2.5G, but older
@@ -262,6 +277,7 @@ static void tc956x_pma_init(struct tc956x_data *td)
 {
 	const struct tc956x_chip *chip = td->auxbus_data->chip;
 	void __iomem *emac_ctl = td->auxbus_data->emac_ctl;
+	void __iomem *sfr = td->auxbus_data->sfr;
 	u32 id = td->auxbus_data->mac_id;
 	void __iomem *pmatop;
 	u32 val;
@@ -297,6 +313,12 @@ static void tc956x_pma_init(struct tc956x_data *td)
 	}
 
 	tc956x_reset_deassert(chip, id, MAC_RESET_PMA);
+
+	if (td->plat->phy_interface == PHY_INTERFACE_MODE_USXGMII) {
+		writel(0x0f, sfr + TC956X_GLUE_PHY_REG_ACCESS_CTRL);
+		writel(0x0f, sfr + TC956X_PHY_CORE0_GL_LANE_ACCESS);
+		writel(0x02, sfr + TC956X_PMA_LN_PCS2PMA_PHYMODE_R2);
+	}
 
 	WARN_ON(readl_poll_timeout(emac_ctl, val, val & EMAC_INIT_DONE,
 				   50, 1000000));
@@ -346,13 +368,33 @@ static int tc956x_mac_configure(struct tc956x_data *td,
 static void tc956x_mac_enable(struct tc956x_data *td)
 {
 	const struct tc956x_chip *chip = td->auxbus_data->chip;
+	struct plat_stmmacenet_data *plat = td->plat;
 	u32 id = td->auxbus_data->mac_id;
+	int ret;
 
 	tc956x_clock_enable(chip, id, MAC_CLOCK_TX);
 	tc956x_clock_enable(chip, id, MAC_CLOCK_RX);
 	tc956x_clock_enable(chip, id, MAC_CLOCK_ALL);
 	if (id)
 		tc956x_clock_enable(chip, id, MAC_CLOCK_RMII);
+
+	/*
+	 * USXGMII drives an external multi-gigabit PHY that needs a reference
+	 * clock to run. Enable the SerDes PLL, the SGMII/PCIe clock and the
+	 * reference clock output, plus the per-MAC 125 MHz and 312.5 MHz
+	 * clocks. For SGMII/2500BASEX (SFP) these must stay disabled.
+	 */
+	if (plat->phy_interface == PHY_INTERFACE_MODE_USXGMII) {
+		tc956x_common_clock_enable(chip, COMMON_CLOCK_PLL);
+		tc956x_common_clock_enable(chip, COMMON_CLOCK_SGMII);
+		tc956x_common_clock_enable(chip, COMMON_CLOCK_REFCLK);
+		tc956x_clock_enable(chip, id, MAC_CLOCK_125M);
+		tc956x_clock_enable(chip, id, MAC_CLOCK_312_5M);
+	}
+
+	ret = tc956x_mac_configure(td, plat->phy_interface, plat->max_speed);
+	if (ret)
+		dev_warn(td->dev, "failed to configure MAC speed: %d\n", ret);
 
 	tc956x_reset_deassert(chip, id, MAC_RESET_MAC);
 	tc956x_pma_init(td);
@@ -362,6 +404,7 @@ static void tc956x_mac_enable(struct tc956x_data *td)
 static void tc956x_mac_disable(struct tc956x_data *td)
 {
 	const struct tc956x_chip *chip = td->auxbus_data->chip;
+	struct plat_stmmacenet_data *plat = td->plat;
 	u32 id = td->auxbus_data->mac_id;
 
 	tc956x_reset_assert(chip, id, MAC_RESET_MAC);
@@ -373,6 +416,14 @@ static void tc956x_mac_disable(struct tc956x_data *td)
 	tc956x_clock_disable(chip, id, MAC_CLOCK_TX);
 	if (id)
 		tc956x_clock_disable(chip, id, MAC_CLOCK_RMII);
+
+	if (plat->phy_interface == PHY_INTERFACE_MODE_USXGMII) {
+		tc956x_clock_disable(chip, id, MAC_CLOCK_125M);
+		tc956x_clock_disable(chip, id, MAC_CLOCK_312_5M);
+		tc956x_common_clock_disable(chip, COMMON_CLOCK_REFCLK);
+		tc956x_common_clock_disable(chip, COMMON_CLOCK_SGMII);
+		tc956x_common_clock_disable(chip, COMMON_CLOCK_PLL);
+	}
 }
 
 static void tc956x_mac_init_state(struct tc956x_data *td)
@@ -511,6 +562,9 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 	struct tc956x_data *td = bsp_priv;
 
 	tc956x_mac_configure(td, td->plat->phy_interface, speed);
+	if (td->plat->phy_interface == PHY_INTERFACE_MODE_USXGMII)
+		return;
+
 	tc956x_pma_init(td);
 }
 
@@ -562,6 +616,9 @@ static int tc956x_dwmac_parse_dt(struct tc956x_data *td)
 static int tc956x_lookup_max_speed(phy_interface_t phy_interface)
 {
 	switch (phy_interface) {
+	case PHY_INTERFACE_MODE_USXGMII:
+		return SPEED_10000;
+
 	case PHY_INTERFACE_MODE_SGMII:
 	case PHY_INTERFACE_MODE_2500BASEX:
 		return SPEED_2500;
@@ -612,7 +669,8 @@ static int tc956x_plat_dat_init(struct tc956x_data *td)
 	 * represents "divide by 62" and gets the best rate under 2.5 MHz.
 	 */
 	plat->clk_csr = 0;	/* MDC clock = clk_csr_i / 62 */
-	plat->mdio_bus_data->default_an_inband = true;
+	plat->mdio_bus_data->default_an_inband =
+		phy_interface != PHY_INTERFACE_MODE_USXGMII;
 	plat->force_sf_dma_mode = true;
 	plat->max_speed = speed;
 	plat->unicast_filter_entries = 32;
