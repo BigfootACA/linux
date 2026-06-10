@@ -47,6 +47,7 @@
 #include <linux/compiler_types.h>
 #include <linux/device.h>
 #include <linux/dev_printk.h>
+#include <linux/idr.h>
 #include <linux/init.h>
 #include <linux/io.h>
 #include <linux/module.h>
@@ -152,6 +153,7 @@ enum clock_id {
  * @sfr:		Mapped SFR regions (BAR 4, one per PCI function)
  * @bridge_config:	Regmap used for bridge configuration (BAR 0)
  * @reset_clock_regmap:	Regmap used for resets and clocks
+ * @instance_id:	TC956X instance ID used for auxiliary device IDs
  * @rev_id:		Chip revision ID (for quirks)
  */
 struct tc956x_chip {
@@ -159,8 +161,11 @@ struct tc956x_chip {
 	void __iomem *sfr[2];
 	void __iomem *bridge_config;
 	struct regmap *reset_clock_regmap;
+	int instance_id;
 	u8 rev_id;
 };
+
+static DEFINE_IDA(tc956x_instance_ida);
 
 static const struct regmap_config gpio_regmap_config = {
 	.name		= "tc956x-gpio",
@@ -234,6 +239,13 @@ static void adev_remove(void *data)
 
 	auxiliary_device_delete(adev);
 	auxiliary_device_uninit(adev);
+}
+
+static void chip_instance_id_free(void *data)
+{
+	struct tc956x_chip *chip = data;
+
+	ida_free(&tc956x_instance_ida, chip->instance_id);
 }
 
 /* The of_node reference is always be dropped (success or not) */
@@ -367,7 +379,8 @@ static int chip_gpio_adev_add(struct tc956x_chip *chip)
 		return PTR_ERR(regmap);
 	}
 
-	return adev_device_add(dev, GPIO_DEVICE_NAME, 0, np, regmap);
+	return adev_device_add(dev, GPIO_DEVICE_NAME, chip->instance_id, np,
+			       regmap);
 }
 
 /* The two embedded XGMAC controllers have an auxiliary device driver */
@@ -405,7 +418,8 @@ static int function_xgmac_adev_add(struct pci_dev *pdev,
 	data->rev_id = chip->rev_id;
 	data->mac_id = mac_id;
 
-	ret = adev_device_add(dev, TC956X_XGMAC_DEV_NAME, mac_id, np, data);
+	ret = adev_device_add(dev, TC956X_XGMAC_DEV_NAME,
+			      chip->instance_id * 2 + mac_id, np, data);
 	if (ret)
 		return ret;
 
@@ -568,6 +582,15 @@ static struct tc956x_chip *chip_get(struct pci_dev *pdev)
 		chip = devm_kzalloc(dev, sizeof(*chip), GFP_KERNEL);
 		if (!chip)
 			return ERR_PTR(-ENOMEM);
+
+		ret = ida_alloc(&tc956x_instance_ida, GFP_KERNEL);
+		if (ret < 0)
+			return ERR_PTR(ret);
+		chip->instance_id = ret;
+
+		ret = devm_add_action_or_reset(dev, chip_instance_id_free, chip);
+		if (ret)
+			return ERR_PTR(ret);
 
 		/*
 		 * The function whose device pointer matches the chip's
