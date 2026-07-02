@@ -2916,6 +2916,7 @@
 
 			dma-coherent;
 			usb-role-switch;
+			wakeup-source;
 
 			status = "disabled";
 
