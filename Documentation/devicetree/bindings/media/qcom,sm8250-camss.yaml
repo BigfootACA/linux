@@ -102,6 +102,14 @@ properties:
       - description: IFE1 GDSC - Image Front End, Global Distributed Switch Controller.
       - description: Titan GDSC - Titan ISP Block, Global Distributed Switch Controller.
 
+  "#address-cells":
+    const: 2
+
+  "#size-cells":
+    const: 2
+
+  ranges: true
+
   ports:
     $ref: /schemas/graph.yaml#/properties/ports
 
@@ -317,7 +325,7 @@ required:
   - vdda-phy-supply
   - vdda-pll-supply
 
-additionalProperties: false
+unevaluatedProperties: false
 
 examples:
   - |
