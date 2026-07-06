@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: GPL-2.0-only
+config VIDEO_QCOM_JENC
+	tristate "Qualcomm V4L2 JPEG Encoder driver"
+	depends on V4L_MEM2MEM_DRIVERS
+	depends on (ARCH_QCOM && IOMMU_DMA) || COMPILE_TEST
+	depends on VIDEO_DEV
+	select VIDEOBUF2_DMA_SG
+	select V4L2_JPEG_HELPER
+	select V4L2_MEM2MEM_DEV
+	help
+	  V4L2 mem2mem driver for the Qualcomm JPEG encoder hardware
+	  found in Snapdragon SoCs.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called qcom-jenc.

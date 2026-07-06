@@ -240,6 +240,27 @@ enum v4l2_colorfx {
  */
 #define V4L2_CID_USER_MALI_C55_BASE		(V4L2_CID_USER_BASE + 0x1230)
 
+/* Qualcomm JPEG encoder controls */
+#define V4L2_CID_USER_QCOM_JENC_BASE		(V4L2_CID_USER_BASE + 0x1240)
+
+/*
+ * V4L2_CID_QCOM_JPEG_PERF_LEVEL_AUTO - enable adaptive performance scaling.
+ *
+ * When set to 1 the driver selects the core clock OPP level based on the
+ * encoded frame resolution and fps target. When set to 0 (default) the
+ * driver always runs at NOMINAL (highest) OPP level.
+ */
+#define V4L2_CID_QCOM_JPEG_PERF_LEVEL_AUTO	(V4L2_CID_USER_QCOM_JENC_BASE + 0)
+
+/*
+ * V4L2_CID_QCOM_JPEG_FPS_TARGET - target encode rate in frames per second.
+ *
+ * Used together with V4L2_CID_QCOM_JPEG_PERF_LEVEL_AUTO to select the lowest
+ * OPP level whose throughput is sufficient for the requested frame rate.
+ * Has no effect when perf_level_auto is 0. Range: 1-240, default: 30.
+ */
+#define V4L2_CID_QCOM_JPEG_FPS_TARGET		(V4L2_CID_USER_QCOM_JENC_BASE + 1)
+
 /* MPEG-class control IDs */
 /* The MPEG controls are applicable to all codec controls
  * and the 'MPEG' part of the define is historical */

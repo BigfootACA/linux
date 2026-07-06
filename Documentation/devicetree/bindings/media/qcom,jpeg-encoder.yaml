@@ -72,80 +72,75 @@ examples:
     #include <dt-bindings/interconnect/qcom,sm8250.h>
     #include <dt-bindings/interrupt-controller/arm-gic.h>
 
-    jpeg-encoder@ac53000 {
-        compatible = "qcom,sm8250-jenc";
-        reg = <0xac53000 0x1000>;
+    soc {
+        #address-cells = <2>;
+        #size-cells = <2>;
 
-        interrupts = <GIC_SPI 474 IRQ_TYPE_EDGE_RISING>;
+        jpeg-encoder@ac53000 {
+            compatible = "qcom,sm8250-jenc";
+            reg = <0 0x0ac53000 0 0x1000>;
 
-        clocks = <&gcc GCC_CAMERA_HF_AXI_CLK>,
-                 <&gcc GCC_CAMERA_SF_AXI_CLK>,
-                 <&camcc CAM_CC_CORE_AHB_CLK>,
-                 <&camcc CAM_CC_CPAS_AHB_CLK>,
-                 <&camcc CAM_CC_CAMNOC_AXI_CLK>,
-                 <&camcc CAM_CC_JPEG_CLK>;
-        clock-names = "hf_axi",
-                      "sf_axi",
-                      "core_ahb",
-                      "cpas_ahb",
-                      "cnoc_axi",
-                      "jpeg";
+            interrupts = <GIC_SPI 474 IRQ_TYPE_EDGE_RISING>;
 
-        interconnects = <&gem_noc MASTER_AMPSS_M0 QCOM_ICC_TAG_ACTIVE_ONLY
-                         &config_noc SLAVE_CAMERA_CFG QCOM_ICC_TAG_ACTIVE_ONLY>,
-                        <&mmss_noc MASTER_CAMNOC_HF QCOM_ICC_TAG_ALWAYS
-                         &mc_virt SLAVE_EBI_CH0 QCOM_ICC_TAG_ALWAYS>,
-                        <&mmss_noc MASTER_CAMNOC_SF QCOM_ICC_TAG_ALWAYS
-                         &mc_virt SLAVE_EBI_CH0 QCOM_ICC_TAG_ALWAYS>;
-        interconnect-names = "cpu-cfg",
-                             "hf-mnoc",
-                             "sf-mnoc";
+            clocks = <&gcc GCC_CAMERA_HF_AXI_CLK>,
+                     <&gcc GCC_CAMERA_SF_AXI_CLK>,
+                     <&camcc CAM_CC_CORE_AHB_CLK>,
+                     <&camcc CAM_CC_CPAS_AHB_CLK>,
+                     <&camcc CAM_CC_CAMNOC_AXI_CLK>,
+                     <&camcc CAM_CC_JPEG_CLK>;
+            clock-names = "hf_axi",
+                          "sf_axi",
+                          "core_ahb",
+                          "cpas_ahb",
+                          "cnoc_axi",
+                          "jpeg";
 
-        iommus = <&apps_smmu 0x2040 0x400>;
+            interconnects = <&gem_noc MASTER_AMPSS_M0 QCOM_ICC_TAG_ACTIVE_ONLY
+                             &config_noc SLAVE_CAMERA_CFG QCOM_ICC_TAG_ACTIVE_ONLY>,
+                            <&mmss_noc MASTER_CAMNOC_HF QCOM_ICC_TAG_ALWAYS
+                             &mc_virt SLAVE_EBI_CH0 QCOM_ICC_TAG_ALWAYS>,
+                            <&mmss_noc MASTER_CAMNOC_SF QCOM_ICC_TAG_ALWAYS
+                             &mc_virt SLAVE_EBI_CH0 QCOM_ICC_TAG_ALWAYS>;
+            interconnect-names = "cpu-cfg",
+                                 "hf-mnoc",
+                                 "sf-mnoc";
 
-        operating-points-v2 = <&jpeg_opp_table>;
+            iommus = <&apps_smmu 0x2040 0x400>;
 
-        jpeg_opp_table: opp-table {
-            compatible = "operating-points-v2";
+            operating-points-v2 = <&jpeg_opp_table>;
 
-            opp-100000000 {
-                opp-hz = /bits/ 64 <400000000>,
-                         /bits/ 64 <100000000>;
-                opp-peak-kBps = <76800 104166 104166>;
-                opp-avg-kBps = <38400 33569 33569>;
-                required-opps = <&rpmhpd_opp_min_svs>;
-            };
+            jpeg_opp_table: opp-table {
+                compatible = "operating-points-v2";
 
-            opp-200000000 {
-                opp-hz = /bits/ 64 <400000000>,
-                         /bits/ 64 <200000000>;
-                opp-peak-kBps = <76800 208333 208333>;
-                opp-avg-kBps = <38400 67138 67138>;
-                required-opps = <&rpmhpd_opp_low_svs>;
-            };
+                opp-100000000 {
+                    opp-hz = /bits/ 64 <400000000>,
+                             /bits/ 64 <100000000>;
+                    required-opps = <&rpmhpd_opp_min_svs>;
+                };
 
-            opp-400000000 {
-                opp-hz = /bits/ 64 <400000000>,
-                         /bits/ 64 <400000000>;
-                opp-peak-kBps = <76800 416666 416666>;
-                opp-avg-kBps = <38400 134277 134277>;
-                required-opps = <&rpmhpd_opp_svs>;
-            };
+                opp-200000000 {
+                    opp-hz = /bits/ 64 <400000000>,
+                             /bits/ 64 <200000000>;
+                    required-opps = <&rpmhpd_opp_low_svs>;
+                };
 
-            opp-480000000 {
-                opp-hz = /bits/ 64 <400000000>,
-                         /bits/ 64 <480000000>;
-                opp-peak-kBps = <76800 500000 500000>;
-                opp-avg-kBps = <38400 161132 161132>;
-                required-opps = <&rpmhpd_opp_svs_l1>;
-            };
+                opp-400000000 {
+                    opp-hz = /bits/ 64 <400000000>,
+                             /bits/ 64 <400000000>;
+                    required-opps = <&rpmhpd_opp_svs>;
+                };
 
-            opp-600000000 {
-                opp-hz = /bits/ 64 <400000000>,
-                         /bits/ 64 <600000000>;
-                opp-peak-kBps = <76800 625000 625000>;
-                opp-avg-kBps = <38400 201416 201416>;
-                required-opps = <&rpmhpd_opp_nom>;
+                opp-480000000 {
+                    opp-hz = /bits/ 64 <400000000>,
+                             /bits/ 64 <480000000>;
+                    required-opps = <&rpmhpd_opp_svs_l1>;
+                };
+
+                opp-600000000 {
+                    opp-hz = /bits/ 64 <400000000>,
+                             /bits/ 64 <600000000>;
+                    required-opps = <&rpmhpd_opp_nom>;
+                };
             };
         };
     };
