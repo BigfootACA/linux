@@ -12,6 +12,7 @@
 #include <dt-bindings/dma/qcom-gpi.h>
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/interconnect/qcom,osm-l3.h>
+#include <dt-bindings/interconnect/qcom,icc.h>
 #include <dt-bindings/interconnect/qcom,sm8250.h>
 #include <dt-bindings/mailbox/qcom-ipcc.h>
 #include <dt-bindings/phy/phy-qcom-qmp.h>
@@ -4479,6 +4480,10 @@
 
 		camss: camss@ac6a000 {
 			compatible = "qcom,sm8250-camss";
+			#address-cells = <2>;
+			#size-cells = <2>;
+			ranges;
+
 			status = "disabled";
 
 			reg = <0 0x0ac6a000 0 0x2000>,
@@ -4655,6 +4660,82 @@
 
 				port@5 {
 					reg = <5>;
+				};
+			};
+
+			jpeg-encoder@ac53000 {
+				compatible = "qcom,sm8250-jenc";
+
+				reg = <0 0x0ac53000 0 0x1000>;
+
+				interrupts = <GIC_SPI 474 IRQ_TYPE_EDGE_RISING>;
+
+				clocks = <&gcc GCC_CAMERA_HF_AXI_CLK>,
+					 <&gcc GCC_CAMERA_SF_AXI_CLK>,
+					 <&camcc CAM_CC_CORE_AHB_CLK>,
+					 <&camcc CAM_CC_CPAS_AHB_CLK>,
+					 <&camcc CAM_CC_CAMNOC_AXI_CLK>,
+					 <&camcc CAM_CC_JPEG_CLK>;
+
+				clock-names = "hf_axi",
+					      "sf_axi",
+					      "core_ahb",
+					      "cpas_ahb",
+					      "cnoc_axi",
+					      "jpeg";
+
+				interconnects = <&gem_noc MASTER_AMPSS_M0
+						 QCOM_ICC_TAG_ACTIVE_ONLY
+						 &config_noc SLAVE_CAMERA_CFG
+						 QCOM_ICC_TAG_ACTIVE_ONLY>,
+						<&mmss_noc MASTER_CAMNOC_HF
+						 QCOM_ICC_TAG_ALWAYS
+						 &mc_virt SLAVE_EBI_CH0
+						 QCOM_ICC_TAG_ALWAYS>,
+						<&mmss_noc MASTER_CAMNOC_SF
+						 QCOM_ICC_TAG_ALWAYS
+						 &mc_virt SLAVE_EBI_CH0
+						 QCOM_ICC_TAG_ALWAYS>;
+				interconnect-names = "cpu-cfg",
+						     "hf-mnoc",
+						     "sf-mnoc";
+
+				iommus = <&apps_smmu 0x2040 0x400>;
+
+				operating-points-v2 = <&jpeg_opp_table>;
+
+				jpeg_opp_table: opp-table {
+					compatible = "operating-points-v2";
+
+					opp-100000000 {
+						opp-hz = /bits/ 64 <400000000>,
+							 /bits/ 64 <100000000>;
+						required-opps = <&rpmhpd_opp_min_svs>;
+					};
+
+					opp-200000000 {
+						opp-hz = /bits/ 64 <400000000>,
+							 /bits/ 64 <200000000>;
+						required-opps = <&rpmhpd_opp_low_svs>;
+					};
+
+					opp-400000000 {
+						opp-hz = /bits/ 64 <400000000>,
+							 /bits/ 64 <400000000>;
+						required-opps = <&rpmhpd_opp_svs>;
+					};
+
+					opp-480000000 {
+						opp-hz = /bits/ 64 <400000000>,
+							 /bits/ 64 <480000000>;
+						required-opps = <&rpmhpd_opp_svs_l1>;
+					};
+
+					opp-600000000 {
+						opp-hz = /bits/ 64 <400000000>,
+							 /bits/ 64 <600000000>;
+						required-opps = <&rpmhpd_opp_nom>;
+					};
 				};
 			};
 		};
