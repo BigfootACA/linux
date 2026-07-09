@@ -103,11 +103,15 @@ static void iris_hfi_gen1_read_changed_params(struct iris_inst *inst,
 		num_properties_changed--;
 	} while (num_properties_changed > 0);
 
+	/* pic_struct carries progressive_only: 0 means the content is interlaced */
+	inst->is_interlaced = !event.pic_struct;
+
 	pixmp_ip->width = event.width;
 	pixmp_ip->height = event.height;
 
 	pixmp_op->width = ALIGN(event.width, 128);
 	pixmp_op->height = ALIGN(event.height, 32);
+	pixmp_op->field = inst->is_interlaced ? V4L2_FIELD_INTERLACED : V4L2_FIELD_NONE;
 	pixmp_op->plane_fmt[0].bytesperline = ALIGN(event.width, 128);
 	pixmp_op->plane_fmt[0].sizeimage = iris_get_buffer_size(inst, BUF_OUTPUT);
 
@@ -165,7 +169,7 @@ static void iris_hfi_gen1_read_changed_params(struct iris_inst *inst,
 	dst_q = v4l2_m2m_get_dst_vq(inst->m2m_ctx);
 	dst_q->min_reqbufs_allocation = inst->buffers[BUF_OUTPUT].min_count;
 
-	if (event.bit_depth || !event.pic_struct) {
+	if (event.bit_depth) {
 		dev_err(core->dev, "unsupported content, bit depth: %x, pic_struct = %x\n",
 			event.bit_depth, event.pic_struct);
 		iris_inst_change_state(inst, IRIS_INST_ERROR);

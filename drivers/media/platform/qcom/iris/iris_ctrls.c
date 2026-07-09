@@ -517,7 +517,13 @@ int iris_set_stage(struct iris_inst *inst, enum platform_inst_fw_cap_type cap_id
 	u32 work_mode = STAGE_2;
 
 	if (inst->domain == DECODER) {
-		if (iris_res_is_less_than(width, height, 1280, 720))
+		/*
+		 * The two-stage pipeline cannot decode interlaced or MPEG2
+		 * content, so fall back to a single stage. Low resolution
+		 * content also uses a single stage.
+		 */
+		if (inst->is_interlaced ||
+		    iris_res_is_less_than(width, height, 1280, 720))
 			work_mode = STAGE_1;
 	}
 

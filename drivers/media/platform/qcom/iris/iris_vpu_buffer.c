@@ -950,6 +950,13 @@ static u32 iris_vpu_dec_bin_size(struct iris_inst *inst)
 
 	iris_vpu_dec_coded_dimensions(inst, &width, &height);
 
+	/*
+	 * The bin (scratch) buffer is not used when decoding interlaced
+	 * content.
+	 */
+	if (inst->is_interlaced)
+		return 0;
+
 	if (inst->codec == V4L2_PIX_FMT_H264)
 		return hfi_buffer_bin_h264d(width, height, num_vpp_pipes);
 	else if (inst->codec == V4L2_PIX_FMT_HEVC)
