@@ -80,11 +80,6 @@ int iris_venc_inst_init(struct iris_inst *inst)
 	return iris_ctrls_init(inst);
 }
 
-static const u32 iris_venc_formats_cap[] = {
-	V4L2_PIX_FMT_H264,
-	V4L2_PIX_FMT_HEVC,
-};
-
 static const u32 iris_venc_formats_out[] = {
 	V4L2_PIX_FMT_NV12,
 	V4L2_PIX_FMT_QC08C,
@@ -111,8 +106,8 @@ static bool check_format(struct iris_inst *inst, u32 pixfmt, u32 type)
 		}
 		break;
 	case V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE:
-		fmt = iris_venc_formats_cap;
-		size = ARRAY_SIZE(iris_venc_formats_cap);
+		fmt = inst->core->iris_firmware_data->enc_fmts;
+		size = inst->core->iris_firmware_data->enc_fmts_size;
 		break;
 	default:
 		return false;
@@ -143,8 +138,8 @@ static u32 find_format_by_index(struct iris_inst *inst, u32 index, u32 type)
 		}
 		break;
 	case V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE:
-		fmt = iris_venc_formats_cap;
-		size = ARRAY_SIZE(iris_venc_formats_cap);
+		fmt = inst->core->iris_firmware_data->enc_fmts;
+		size = inst->core->iris_firmware_data->enc_fmts_size;
 		break;
 	default:
 		return 0;

@@ -1249,6 +1249,11 @@ static const u32 iris_hfi_gen2_vpu2_dec_fmts[] = {
 	V4L2_PIX_FMT_VP9,
 };
 
+static const u32 iris_hfi_gen2_enc_fmts[] = {
+	V4L2_PIX_FMT_H264,
+	V4L2_PIX_FMT_HEVC,
+};
+
 const struct iris_firmware_data iris_hfi_gen2_data = {
 	.init_hfi_ops = iris_hfi_gen2_sys_ops_init,
 
@@ -1261,6 +1266,8 @@ const struct iris_firmware_data iris_hfi_gen2_data = {
 
 	.dec_fmts = iris_hfi_gen2_dec_fmts,
 	.dec_fmts_size = ARRAY_SIZE(iris_hfi_gen2_dec_fmts),
+	.enc_fmts = iris_hfi_gen2_enc_fmts,
+	.enc_fmts_size = ARRAY_SIZE(iris_hfi_gen2_enc_fmts),
 
 	.dec_input_config_params_default =
 		sm8550_vdec_input_config_params_default,
@@ -1335,6 +1342,8 @@ const struct iris_firmware_data iris_hfi_gen2_vpu2_data = {
 
 	.dec_fmts = iris_hfi_gen2_vpu2_dec_fmts,
 	.dec_fmts_size = ARRAY_SIZE(iris_hfi_gen2_vpu2_dec_fmts),
+	.enc_fmts = iris_hfi_gen2_enc_fmts,
+	.enc_fmts_size = ARRAY_SIZE(iris_hfi_gen2_enc_fmts),
 
 	.dec_input_config_params_default =
 		sm8550_vdec_input_config_params_default,
@@ -1955,6 +1964,8 @@ const struct iris_firmware_data iris_hfi_gen2_ar50lt_data = {
 	.inst_fw_caps_enc_size = ARRAY_SIZE(inst_fw_cap_gen2_ar50lt_enc),
 	.dec_fmts = iris_hfi_gen2_vpu2_dec_fmts,
 	.dec_fmts_size = ARRAY_SIZE(iris_hfi_gen2_vpu2_dec_fmts),
+	.enc_fmts = iris_hfi_gen2_enc_fmts,
+	.enc_fmts_size = ARRAY_SIZE(iris_hfi_gen2_enc_fmts),
 	.dec_input_config_params_default =
 		sm8550_vdec_input_config_params_default,
 	.dec_input_config_params_default_size =

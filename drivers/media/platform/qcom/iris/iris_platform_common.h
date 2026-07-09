@@ -260,14 +260,16 @@ struct iris_firmware_data {
 	u32 inst_fw_caps_enc_size;
 
 	/*
-	 * List of coded formats supported by this firmware generation, used to
-	 * advertise decode (bitstream) formats to userspace. This lives in the
-	 * firmware data because a single SoC can boot either firmware
-	 * generation, and some codecs (e.g. VP8, MPEG2, AV1) are only supported
-	 * by one generation.
+	 * Lists of coded formats supported by this firmware generation, used
+	 * to advertise decode (bitstream) and encode (capture) formats to
+	 * userspace. These live in the firmware data because a single SoC can
+	 * boot either firmware generation, and some codecs (e.g. VP8, MPEG2,
+	 * AV1) are only supported by one generation.
 	 */
 	const u32 *dec_fmts;
 	unsigned int dec_fmts_size;
+	const u32 *enc_fmts;
+	unsigned int enc_fmts_size;
 
 	const u32 *dec_input_config_params_default;
 	unsigned int dec_input_config_params_default_size;
