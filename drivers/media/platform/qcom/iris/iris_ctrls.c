@@ -28,6 +28,8 @@ static enum platform_inst_fw_cap_type iris_get_cap_id(u32 id)
 		return PROFILE_HEVC;
 	case V4L2_CID_MPEG_VIDEO_VP9_PROFILE:
 		return PROFILE_VP9;
+	case V4L2_CID_MPEG_VIDEO_VP8_PROFILE:
+		return PROFILE_VP8;
 	case V4L2_CID_MPEG_VIDEO_H264_LEVEL:
 		return LEVEL_H264;
 	case V4L2_CID_MPEG_VIDEO_HEVC_LEVEL:
@@ -171,6 +173,8 @@ static u32 iris_get_v4l2_id(enum platform_inst_fw_cap_type cap_id)
 		return V4L2_CID_MPEG_VIDEO_HEVC_PROFILE;
 	case PROFILE_VP9:
 		return V4L2_CID_MPEG_VIDEO_VP9_PROFILE;
+	case PROFILE_VP8:
+		return V4L2_CID_MPEG_VIDEO_VP8_PROFILE;
 	case LEVEL_H264:
 		return V4L2_CID_MPEG_VIDEO_H264_LEVEL;
 	case LEVEL_HEVC:
@@ -558,6 +562,9 @@ int iris_set_profile(struct iris_inst *inst, enum platform_inst_fw_cap_type cap_
 	if (inst->codec == V4L2_PIX_FMT_H264) {
 		hfi_id = inst->fw_caps[PROFILE_H264].hfi_id;
 		hfi_value = inst->fw_caps[PROFILE_H264].value;
+	} else if (inst->codec == V4L2_PIX_FMT_VP8) {
+		hfi_id = inst->fw_caps[PROFILE_VP8].hfi_id;
+		hfi_value = inst->fw_caps[PROFILE_VP8].value;
 	} else {
 		hfi_id = inst->fw_caps[PROFILE_HEVC].hfi_id;
 		hfi_value = inst->fw_caps[PROFILE_HEVC].value;

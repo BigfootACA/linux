@@ -30,6 +30,17 @@ static const struct platform_inst_fw_cap inst_fw_cap_sm8250_dec[] = {
 		.hfi_id = HFI_PROPERTY_PARAM_WORK_MODE,
 		.set = iris_set_stage,
 	},
+	{
+		.cap_id = PROFILE_VP8,
+		.min = V4L2_MPEG_VIDEO_VP8_PROFILE_0,
+		.max = V4L2_MPEG_VIDEO_VP8_PROFILE_3,
+		.step_or_mask = BIT(V4L2_MPEG_VIDEO_VP8_PROFILE_0) |
+				BIT(V4L2_MPEG_VIDEO_VP8_PROFILE_1) |
+				BIT(V4L2_MPEG_VIDEO_VP8_PROFILE_2) |
+				BIT(V4L2_MPEG_VIDEO_VP8_PROFILE_3),
+		.value = V4L2_MPEG_VIDEO_VP8_PROFILE_0,
+		.flags = CAP_FLAG_MENU,
+	},
 };
 
 static const struct platform_inst_fw_cap inst_fw_cap_sm8250_enc[] = {
@@ -423,6 +434,13 @@ static const u32 iris_hfi_gen1_dec_fmts[] = {
 	V4L2_PIX_FMT_H264,
 	V4L2_PIX_FMT_HEVC,
 	V4L2_PIX_FMT_VP9,
+	V4L2_PIX_FMT_VP8,
+};
+
+static const u32 iris_hfi_gen1_ar50lt_dec_fmts[] = {
+	V4L2_PIX_FMT_H264,
+	V4L2_PIX_FMT_HEVC,
+	V4L2_PIX_FMT_VP9,
 };
 
 const struct iris_firmware_data iris_hfi_gen1_data = {
@@ -677,8 +695,8 @@ const struct iris_firmware_data iris_hfi_gen1_ar50lt_data = {
 	.inst_fw_caps_enc = inst_fw_cap_gen1_ar50lt_enc,
 	.inst_fw_caps_enc_size = ARRAY_SIZE(inst_fw_cap_gen1_ar50lt_enc),
 
-	.dec_fmts = iris_hfi_gen1_dec_fmts,
-	.dec_fmts_size = ARRAY_SIZE(iris_hfi_gen1_dec_fmts),
+	.dec_fmts = iris_hfi_gen1_ar50lt_dec_fmts,
+	.dec_fmts_size = ARRAY_SIZE(iris_hfi_gen1_ar50lt_dec_fmts),
 
 	.dec_input_config_params_default =
 		sm8250_vdec_input_config_param_default,

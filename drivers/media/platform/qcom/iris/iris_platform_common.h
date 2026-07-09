@@ -116,6 +116,7 @@ enum platform_inst_fw_cap_type {
 	PROFILE_H264 = 1,
 	PROFILE_HEVC,
 	PROFILE_VP9,
+	PROFILE_VP8,
 	LEVEL_H264,
 	LEVEL_HEVC,
 	LEVEL_VP9,

@@ -293,6 +293,11 @@ static u32 hfi_buffer_persist_vp9d(void)
 		HDR10_HIST_EXTRADATA_SIZE;
 }
 
+static u32 hfi_buffer_persist_vp8d(void)
+{
+	return ALIGN(VP8_NUM_PROBABILITY_TABLE_BUF * VP8_PROB_TABLE_SIZE, DMA_ALIGNMENT);
+}
+
 static u32 hfi_buffer_persist_vp9d_ar50lt(void)
 {
 	return ALIGN(VP9_NUM_PROBABILITY_TABLE_BUF * VP9_PROB_TABLE_SIZE, DMA_ALIGNMENT) +
@@ -715,6 +720,57 @@ u32 hfi_buffer_line_vp9d(u32 frame_width, u32 frame_height, u32 _yuv_bufcount_mi
 	return _lb_size + vpss_lb_size + 4096;
 }
 
+static inline
+u32 size_vp8d_lb_fe_top_data(u32 frame_width, u32 frame_height)
+{
+	return (ALIGN(frame_width, 16) + 8) * 10 * 2;
+}
+
+static inline
+u32 size_vp8d_lb_pe_top_data(u32 frame_width, u32 frame_height)
+{
+	return (ALIGN(frame_width, 16) >> 4) * 64;
+}
+
+static inline
+u32 size_vp8d_lb_vsp_top(u32 frame_width, u32 frame_height)
+{
+	return ((ALIGN(frame_width, 16) >> 4) * 64 / 2) + 256;
+}
+
+static inline
+u32 hfi_iris_vp8d_lb_size(u32 frame_width, u32 frame_height, u32 num_vpp_pipes)
+{
+	return ALIGN(size_vpxd_lb_fe_left_ctrl(frame_width, frame_height), DMA_ALIGNMENT) * num_vpp_pipes +
+		ALIGN(size_vpxd_lb_se_left_ctrl(frame_width, frame_height), DMA_ALIGNMENT) * num_vpp_pipes +
+		ALIGN(size_vp8d_lb_vsp_top(frame_width, frame_height), DMA_ALIGNMENT) +
+		ALIGN(size_vpxd_lb_fe_top_ctrl(frame_width, frame_height), DMA_ALIGNMENT) +
+		2 * ALIGN(size_vpxd_lb_recon_dma_metadata_wr(frame_width, frame_height), DMA_ALIGNMENT) +
+		ALIGN(size_vpxd_lb_se_top_ctrl(frame_width, frame_height), DMA_ALIGNMENT) +
+		ALIGN(size_vp8d_lb_pe_top_data(frame_width, frame_height), DMA_ALIGNMENT) +
+		ALIGN(size_vp8d_lb_fe_top_data(frame_width, frame_height), DMA_ALIGNMENT);
+}
+
+static inline
+u32 hfi_buffer_line_vp8d(u32 frame_width, u32 frame_height, bool is_opb, u32 num_vpp_pipes)
+{
+	u32 vpss_lb_size = 0;
+	u32 _lb_size;
+
+	_lb_size = hfi_iris_vp8d_lb_size(frame_width, frame_height, num_vpp_pipes);
+
+	if (is_opb)
+		vpss_lb_size = size_vpss_lb(frame_width, frame_height);
+
+	return _lb_size + vpss_lb_size;
+}
+
+static inline
+u32 hfi_iris_vp8d_comv_size(u32 frame_width, u32 frame_height)
+{
+	return DIV_ROUND_UP(frame_width, 16) * DIV_ROUND_UP(frame_height, 16) * 8 * 2;
+}
+
 static u32 hfi_buffer_line_h264d(u32 frame_width, u32 frame_height,
 				 bool is_opb, u32 num_vpp_pipes)
 {
@@ -963,6 +1019,8 @@ static u32 iris_vpu_dec_bin_size(struct iris_inst *inst)
 		return hfi_buffer_bin_h265d(width, height, num_vpp_pipes);
 	else if (inst->codec == V4L2_PIX_FMT_VP9)
 		return hfi_buffer_bin_vp9d(width, height, num_vpp_pipes);
+	else if (inst->codec == V4L2_PIX_FMT_VP8)
+		return hfi_buffer_bin_vp9d(width, height, num_vpp_pipes);
 	else if (inst->codec == V4L2_PIX_FMT_AV1)
 		return hfi_buffer_bin_av1d(width, height, num_vpp_pipes);
 
@@ -996,6 +1054,8 @@ static u32 iris_vpu_dec_comv_size(struct iris_inst *inst)
 		return hfi_buffer_comv_h264d(width, height, num_comv);
 	else if (inst->codec == V4L2_PIX_FMT_HEVC)
 		return hfi_buffer_comv_h265d(width, height, num_comv);
+	else if (inst->codec == V4L2_PIX_FMT_VP8)
+		return hfi_iris_vp8d_comv_size(width, height);
 
 	return 0;
 }
@@ -1034,6 +1094,8 @@ static u32 iris_vpu_dec_persist_size(struct iris_inst *inst)
 		return hfi_buffer_persist_h265d(0);
 	else if (inst->codec == V4L2_PIX_FMT_VP9)
 		return hfi_buffer_persist_vp9d();
+	else if (inst->codec == V4L2_PIX_FMT_VP8)
+		return hfi_buffer_persist_vp8d();
 	else if (inst->codec == V4L2_PIX_FMT_AV1) {
 		caps = inst->core->iris_platform_data->inst_caps;
 		if (inst->fw_caps[DRAP].value)
@@ -1114,6 +1176,8 @@ static u32 iris_vpu_dec_line_size(struct iris_inst *inst)
 	else if (inst->codec == V4L2_PIX_FMT_VP9)
 		return hfi_buffer_line_vp9d(width, height, out_min_count, is_opb,
 			num_vpp_pipes);
+	else if (inst->codec == V4L2_PIX_FMT_VP8)
+		return hfi_buffer_line_vp8d(width, height, is_opb, num_vpp_pipes);
 	else if (inst->codec == V4L2_PIX_FMT_AV1)
 		return hfi_buffer_line_av1d(width, height, is_opb, num_vpp_pipes);
 
