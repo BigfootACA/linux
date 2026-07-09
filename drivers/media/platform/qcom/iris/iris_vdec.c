@@ -83,8 +83,8 @@ static bool check_format(struct iris_inst *inst, u32 pixfmt, u32 type)
 
 	switch (type) {
 	case V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE:
-		fmt = inst->core->iris_platform_data->inst_iris_fmts;
-		size = inst->core->iris_platform_data->inst_iris_fmts_size;
+		fmt = inst->core->iris_firmware_data->dec_fmts;
+		size = inst->core->iris_firmware_data->dec_fmts_size;
 		break;
 	case V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE:
 		if (ubwc->ubwc_enc_version) {
@@ -128,8 +128,8 @@ static u32 find_format_by_index(struct iris_inst *inst, u32 index, u32 type)
 
 	switch (type) {
 	case V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE:
-		fmt = inst->core->iris_platform_data->inst_iris_fmts;
-		size = inst->core->iris_platform_data->inst_iris_fmts_size;
+		fmt = inst->core->iris_firmware_data->dec_fmts;
+		size = inst->core->iris_firmware_data->dec_fmts_size;
 		break;
 	case V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE:
 		if (ubwc->ubwc_enc_version) {

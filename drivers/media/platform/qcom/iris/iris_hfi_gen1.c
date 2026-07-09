@@ -419,6 +419,12 @@ static const u32 sm8250_enc_ip_int_buf_tbl[] = {
 	BUF_SCRATCH_2,
 };
 
+static const u32 iris_hfi_gen1_dec_fmts[] = {
+	V4L2_PIX_FMT_H264,
+	V4L2_PIX_FMT_HEVC,
+	V4L2_PIX_FMT_VP9,
+};
+
 const struct iris_firmware_data iris_hfi_gen1_data = {
 	.init_hfi_ops = &iris_hfi_gen1_sys_ops_init,
 
@@ -426,6 +432,9 @@ const struct iris_firmware_data iris_hfi_gen1_data = {
 	.inst_fw_caps_dec_size = ARRAY_SIZE(inst_fw_cap_sm8250_dec),
 	.inst_fw_caps_enc = inst_fw_cap_sm8250_enc,
 	.inst_fw_caps_enc_size = ARRAY_SIZE(inst_fw_cap_sm8250_enc),
+
+	.dec_fmts = iris_hfi_gen1_dec_fmts,
+	.dec_fmts_size = ARRAY_SIZE(iris_hfi_gen1_dec_fmts),
 
 	.dec_input_config_params_default =
 		sm8250_vdec_input_config_param_default,
@@ -667,6 +676,9 @@ const struct iris_firmware_data iris_hfi_gen1_ar50lt_data = {
 	.inst_fw_caps_dec_size = ARRAY_SIZE(iris_inst_fw_cap_gen1_ar50lt_dec),
 	.inst_fw_caps_enc = inst_fw_cap_gen1_ar50lt_enc,
 	.inst_fw_caps_enc_size = ARRAY_SIZE(inst_fw_cap_gen1_ar50lt_enc),
+
+	.dec_fmts = iris_hfi_gen1_dec_fmts,
+	.dec_fmts_size = ARRAY_SIZE(iris_hfi_gen1_dec_fmts),
 
 	.dec_input_config_params_default =
 		sm8250_vdec_input_config_param_default,

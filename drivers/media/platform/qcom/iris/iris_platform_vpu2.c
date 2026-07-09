@@ -42,12 +42,6 @@ static const struct iris_firmware_desc iris_vpu20_p4_gen2_s6_desc = {
 	.fwname = "qcom/vpu/vpu20_p4_gen2_s6.mbn",
 };
 
-static const u32 iris_fmts_vpu2_dec[] = {
-	V4L2_PIX_FMT_H264,
-	V4L2_PIX_FMT_HEVC,
-	V4L2_PIX_FMT_VP9,
-};
-
 static struct platform_inst_caps platform_inst_cap_vpu2 = {
 	.min_frame_width = 128,
 	.max_frame_width = 8192,
@@ -95,8 +89,6 @@ const struct iris_platform_data sc7280_data = {
 	.opp_clk_tbl = sc7280_opp_clk_table,
 	/* Upper bound of DMA address range */
 	.dma_mask = 0xe0000000 - 1,
-	.inst_iris_fmts = iris_fmts_vpu2_dec,
-	.inst_iris_fmts_size = ARRAY_SIZE(iris_fmts_vpu2_dec),
 	.inst_caps = &platform_inst_cap_vpu2,
 	.tz_cp_config_data = tz_cp_config_vpu2,
 	.tz_cp_config_data_size = ARRAY_SIZE(tz_cp_config_vpu2),
@@ -129,8 +121,6 @@ const struct iris_platform_data sc8280xp_data = {
 	.opp_clk_tbl = sm8250_opp_clk_table,
 	/* Upper bound of DMA address range */
 	.dma_mask = 0xe0000000 - 1,
-	.inst_iris_fmts = iris_fmts_vpu2_dec,
-	.inst_iris_fmts_size = ARRAY_SIZE(iris_fmts_vpu2_dec),
 	.inst_caps = &platform_inst_cap_vpu2,
 	.tz_cp_config_data = tz_cp_config_vpu2,
 	.tz_cp_config_data_size = ARRAY_SIZE(tz_cp_config_vpu2),

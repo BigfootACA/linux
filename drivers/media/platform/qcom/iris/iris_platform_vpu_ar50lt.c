@@ -25,12 +25,6 @@ static const struct iris_firmware_desc iris_vpu_ar50lt_p1_gen2_s6_desc = {
 	.fwname = "qcom/vpu/ar50lt_p1_gen2_s6.mbn",
 };
 
-static const u32 iris_fmts_ar50lt_dec[] = {
-	V4L2_PIX_FMT_H264,
-	V4L2_PIX_FMT_HEVC,
-	V4L2_PIX_FMT_VP9,
-};
-
 static const struct bw_info iris_bw_table_dec_ar50lt[] = {
 	{ ((1920 * 1080) / 256) * 60, 1564000, },
 	{ ((1920 * 1080) / 256) * 30,  791000, },
@@ -100,8 +94,6 @@ const struct iris_platform_data qcm2290_data = {
 	.opp_clk_tbl = iris_opp_clk_table_ar50lt,
 	/* Upper bound of DMA address range */
 	.dma_mask = 0xe0000000 - 1,
-	.inst_iris_fmts = iris_fmts_ar50lt_dec,
-	.inst_iris_fmts_size = ARRAY_SIZE(iris_fmts_ar50lt_dec),
 	.inst_caps = &platform_inst_cap_ar50lt,
 	.tz_cp_config_data = tz_cp_config_ar50lt,
 	.tz_cp_config_data_size = ARRAY_SIZE(tz_cp_config_ar50lt),

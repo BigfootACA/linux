@@ -256,6 +256,16 @@ struct iris_firmware_data {
 	const struct platform_inst_fw_cap *inst_fw_caps_enc;
 	u32 inst_fw_caps_enc_size;
 
+	/*
+	 * List of coded formats supported by this firmware generation, used to
+	 * advertise decode (bitstream) formats to userspace. This lives in the
+	 * firmware data because a single SoC can boot either firmware
+	 * generation, and some codecs (e.g. VP8, MPEG2, AV1) are only supported
+	 * by one generation.
+	 */
+	const u32 *dec_fmts;
+	unsigned int dec_fmts_size;
+
 	const u32 *dec_input_config_params_default;
 	unsigned int dec_input_config_params_default_size;
 	const u32 *dec_input_config_params_hevc;
@@ -318,8 +328,6 @@ struct iris_platform_data {
 	const char * const *controller_rst_tbl;
 	unsigned int controller_rst_tbl_size;
 	u64 dma_mask;
-	const u32 *inst_iris_fmts;
-	u32 inst_iris_fmts_size;
 	struct platform_inst_caps *inst_caps;
 	const struct tz_cp_config *tz_cp_config_data;
 	u32 tz_cp_config_data_size;
