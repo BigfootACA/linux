@@ -151,6 +151,19 @@ static const struct platform_inst_fw_cap inst_fw_cap_sm8250_enc[] = {
 		.set = iris_set_profile_level_gen1,
 	},
 	{
+		.cap_id = PROFILE_VP8,
+		.min = V4L2_MPEG_VIDEO_VP8_PROFILE_0,
+		.max = V4L2_MPEG_VIDEO_VP8_PROFILE_3,
+		.step_or_mask = BIT(V4L2_MPEG_VIDEO_VP8_PROFILE_0) |
+				BIT(V4L2_MPEG_VIDEO_VP8_PROFILE_1) |
+				BIT(V4L2_MPEG_VIDEO_VP8_PROFILE_2) |
+				BIT(V4L2_MPEG_VIDEO_VP8_PROFILE_3),
+		.value = V4L2_MPEG_VIDEO_VP8_PROFILE_0,
+		.hfi_id = HFI_PROPERTY_PARAM_PROFILE_LEVEL_CURRENT,
+		.flags = CAP_FLAG_OUTPUT_PORT | CAP_FLAG_MENU,
+		.set = iris_set_profile_level_gen1,
+	},
+	{
 		.cap_id = HEADER_MODE,
 		.min = V4L2_MPEG_VIDEO_HEADER_MODE_SEPARATE,
 		.max = V4L2_MPEG_VIDEO_HEADER_MODE_JOINED_WITH_1ST_FRAME,
@@ -470,6 +483,12 @@ static const u32 iris_hfi_gen1_ar50lt_dec_fmts[] = {
 static const u32 iris_hfi_gen1_enc_fmts[] = {
 	V4L2_PIX_FMT_H264,
 	V4L2_PIX_FMT_HEVC,
+	V4L2_PIX_FMT_VP8,
+};
+
+static const u32 iris_hfi_gen1_ar50lt_enc_fmts[] = {
+	V4L2_PIX_FMT_H264,
+	V4L2_PIX_FMT_HEVC,
 };
 
 const struct iris_firmware_data iris_hfi_gen1_data = {
@@ -728,8 +747,8 @@ const struct iris_firmware_data iris_hfi_gen1_ar50lt_data = {
 
 	.dec_fmts = iris_hfi_gen1_ar50lt_dec_fmts,
 	.dec_fmts_size = ARRAY_SIZE(iris_hfi_gen1_ar50lt_dec_fmts),
-	.enc_fmts = iris_hfi_gen1_enc_fmts,
-	.enc_fmts_size = ARRAY_SIZE(iris_hfi_gen1_enc_fmts),
+	.enc_fmts = iris_hfi_gen1_ar50lt_enc_fmts,
+	.enc_fmts_size = ARRAY_SIZE(iris_hfi_gen1_ar50lt_enc_fmts),
 
 	.dec_input_config_params_default =
 		sm8250_vdec_input_config_param_default,

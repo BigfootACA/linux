@@ -542,6 +542,13 @@ static const struct iris_hfi_gen1_id_mapping iris_hfi_gen1_hevc_levels[] = {
 	{ HFI_HEVC_LEVEL_62, V4L2_MPEG_VIDEO_HEVC_LEVEL_6_2 },
 };
 
+static const struct iris_hfi_gen1_id_mapping iris_hfi_gen1_vp8_profiles[] = {
+	{ HFI_VPX_PROFILE_VERSION_0, V4L2_MPEG_VIDEO_VP8_PROFILE_0 },
+	{ HFI_VPX_PROFILE_VERSION_1, V4L2_MPEG_VIDEO_VP8_PROFILE_1 },
+	{ HFI_VPX_PROFILE_VERSION_2, V4L2_MPEG_VIDEO_VP8_PROFILE_2 },
+	{ HFI_VPX_PROFILE_VERSION_3, V4L2_MPEG_VIDEO_VP8_PROFILE_3 },
+};
+
 static u32 iris_hfi_gen1_find_hfi_id(u32 v4l2_id,
 				     const struct iris_hfi_gen1_id_mapping *array,
 				     unsigned int array_sz)
@@ -576,6 +583,11 @@ iris_hfi_gen1_profile_level(struct iris_inst *inst, u32 v4l2_pf, u32 v4l2_lvl,
 							ARRAY_SIZE(iris_hfi_gen1_hevc_profiles));
 		pl->level = iris_hfi_gen1_find_hfi_id(v4l2_lvl, iris_hfi_gen1_hevc_levels,
 						      ARRAY_SIZE(iris_hfi_gen1_hevc_levels));
+		break;
+	case V4L2_PIX_FMT_VP8:
+		pl->profile = iris_hfi_gen1_find_hfi_id(v4l2_pf, iris_hfi_gen1_vp8_profiles,
+							ARRAY_SIZE(iris_hfi_gen1_vp8_profiles));
+		pl->level = 0;
 		break;
 	default:
 		pl->profile = 0;

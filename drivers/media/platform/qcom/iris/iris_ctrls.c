@@ -621,6 +621,9 @@ int iris_set_profile_level_gen1(struct iris_inst *inst, enum platform_inst_fw_ca
 	if (inst->codec == V4L2_PIX_FMT_H264) {
 		pl.profile = inst->fw_caps[PROFILE_H264].value;
 		pl.level = inst->fw_caps[LEVEL_H264].value;
+	} else if (inst->codec == V4L2_PIX_FMT_VP8) {
+		pl.profile = inst->fw_caps[PROFILE_VP8].value;
+		pl.level = 0;
 	} else {
 		pl.profile = inst->fw_caps[PROFILE_HEVC].value;
 		pl.level = inst->fw_caps[LEVEL_HEVC].value;
