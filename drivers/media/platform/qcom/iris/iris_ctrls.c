@@ -30,12 +30,16 @@ static enum platform_inst_fw_cap_type iris_get_cap_id(u32 id)
 		return PROFILE_VP9;
 	case V4L2_CID_MPEG_VIDEO_VP8_PROFILE:
 		return PROFILE_VP8;
+	case V4L2_CID_MPEG_VIDEO_MPEG2_PROFILE:
+		return PROFILE_MPEG2;
 	case V4L2_CID_MPEG_VIDEO_H264_LEVEL:
 		return LEVEL_H264;
 	case V4L2_CID_MPEG_VIDEO_HEVC_LEVEL:
 		return LEVEL_HEVC;
 	case V4L2_CID_MPEG_VIDEO_VP9_LEVEL:
 		return LEVEL_VP9;
+	case V4L2_CID_MPEG_VIDEO_MPEG2_LEVEL:
+		return LEVEL_MPEG2;
 	case V4L2_CID_MPEG_VIDEO_HEVC_TIER:
 		return TIER;
 	case V4L2_CID_MPEG_VIDEO_HEADER_MODE:
@@ -175,12 +179,16 @@ static u32 iris_get_v4l2_id(enum platform_inst_fw_cap_type cap_id)
 		return V4L2_CID_MPEG_VIDEO_VP9_PROFILE;
 	case PROFILE_VP8:
 		return V4L2_CID_MPEG_VIDEO_VP8_PROFILE;
+	case PROFILE_MPEG2:
+		return V4L2_CID_MPEG_VIDEO_MPEG2_PROFILE;
 	case LEVEL_H264:
 		return V4L2_CID_MPEG_VIDEO_H264_LEVEL;
 	case LEVEL_HEVC:
 		return V4L2_CID_MPEG_VIDEO_HEVC_LEVEL;
 	case LEVEL_VP9:
 		return V4L2_CID_MPEG_VIDEO_VP9_LEVEL;
+	case LEVEL_MPEG2:
+		return V4L2_CID_MPEG_VIDEO_MPEG2_LEVEL;
 	case TIER:
 		return V4L2_CID_MPEG_VIDEO_HEVC_TIER;
 	case HEADER_MODE:
@@ -527,6 +535,7 @@ int iris_set_stage(struct iris_inst *inst, enum platform_inst_fw_cap_type cap_id
 		 * content also uses a single stage.
 		 */
 		if (inst->is_interlaced ||
+		    inst->codec == V4L2_PIX_FMT_MPEG2 ||
 		    iris_res_is_less_than(width, height, 1280, 720))
 			work_mode = STAGE_1;
 	}
@@ -565,6 +574,9 @@ int iris_set_profile(struct iris_inst *inst, enum platform_inst_fw_cap_type cap_
 	} else if (inst->codec == V4L2_PIX_FMT_VP8) {
 		hfi_id = inst->fw_caps[PROFILE_VP8].hfi_id;
 		hfi_value = inst->fw_caps[PROFILE_VP8].value;
+	} else if (inst->codec == V4L2_PIX_FMT_MPEG2) {
+		hfi_id = inst->fw_caps[PROFILE_MPEG2].hfi_id;
+		hfi_value = inst->fw_caps[PROFILE_MPEG2].value;
 	} else {
 		hfi_id = inst->fw_caps[PROFILE_HEVC].hfi_id;
 		hfi_value = inst->fw_caps[PROFILE_HEVC].value;
@@ -585,6 +597,9 @@ int iris_set_level(struct iris_inst *inst, enum platform_inst_fw_cap_type cap_id
 	if (inst->codec == V4L2_PIX_FMT_H264) {
 		hfi_id = inst->fw_caps[LEVEL_H264].hfi_id;
 		hfi_value = inst->fw_caps[LEVEL_H264].value;
+	} else if (inst->codec == V4L2_PIX_FMT_MPEG2) {
+		hfi_id = inst->fw_caps[LEVEL_MPEG2].hfi_id;
+		hfi_value = inst->fw_caps[LEVEL_MPEG2].value;
 	} else {
 		hfi_id = inst->fw_caps[LEVEL_HEVC].hfi_id;
 		hfi_value = inst->fw_caps[LEVEL_HEVC].value;

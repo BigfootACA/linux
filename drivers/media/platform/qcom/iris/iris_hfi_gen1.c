@@ -41,6 +41,29 @@ static const struct platform_inst_fw_cap inst_fw_cap_sm8250_dec[] = {
 		.value = V4L2_MPEG_VIDEO_VP8_PROFILE_0,
 		.flags = CAP_FLAG_MENU,
 	},
+	{
+		.cap_id = PROFILE_MPEG2,
+		.min = V4L2_MPEG_VIDEO_MPEG2_PROFILE_SIMPLE,
+		.max = V4L2_MPEG_VIDEO_MPEG2_PROFILE_HIGH,
+		.step_or_mask = BIT(V4L2_MPEG_VIDEO_MPEG2_PROFILE_SIMPLE) |
+				BIT(V4L2_MPEG_VIDEO_MPEG2_PROFILE_MAIN) |
+				BIT(V4L2_MPEG_VIDEO_MPEG2_PROFILE_SNR_SCALABLE) |
+				BIT(V4L2_MPEG_VIDEO_MPEG2_PROFILE_SPATIALLY_SCALABLE) |
+				BIT(V4L2_MPEG_VIDEO_MPEG2_PROFILE_HIGH),
+		.value = V4L2_MPEG_VIDEO_MPEG2_PROFILE_MAIN,
+		.flags = CAP_FLAG_MENU,
+	},
+	{
+		.cap_id = LEVEL_MPEG2,
+		.min = V4L2_MPEG_VIDEO_MPEG2_LEVEL_LOW,
+		.max = V4L2_MPEG_VIDEO_MPEG2_LEVEL_HIGH,
+		.step_or_mask = BIT(V4L2_MPEG_VIDEO_MPEG2_LEVEL_LOW) |
+				BIT(V4L2_MPEG_VIDEO_MPEG2_LEVEL_MAIN) |
+				BIT(V4L2_MPEG_VIDEO_MPEG2_LEVEL_HIGH_1440) |
+				BIT(V4L2_MPEG_VIDEO_MPEG2_LEVEL_HIGH),
+		.value = V4L2_MPEG_VIDEO_MPEG2_LEVEL_MAIN,
+		.flags = CAP_FLAG_MENU,
+	},
 };
 
 static const struct platform_inst_fw_cap inst_fw_cap_sm8250_enc[] = {
@@ -435,6 +458,7 @@ static const u32 iris_hfi_gen1_dec_fmts[] = {
 	V4L2_PIX_FMT_HEVC,
 	V4L2_PIX_FMT_VP9,
 	V4L2_PIX_FMT_VP8,
+	V4L2_PIX_FMT_MPEG2,
 };
 
 static const u32 iris_hfi_gen1_ar50lt_dec_fmts[] = {

@@ -298,6 +298,11 @@ static u32 hfi_buffer_persist_vp8d(void)
 	return ALIGN(VP8_NUM_PROBABILITY_TABLE_BUF * VP8_PROB_TABLE_SIZE, DMA_ALIGNMENT);
 }
 
+static u32 hfi_buffer_persist_mpeg2d(void)
+{
+	return QMATRIX_SIZE + MP2D_QPDUMP_SIZE;
+}
+
 static u32 hfi_buffer_persist_vp9d_ar50lt(void)
 {
 	return ALIGN(VP9_NUM_PROBABILITY_TABLE_BUF * VP9_PROB_TABLE_SIZE, DMA_ALIGNMENT) +
@@ -1096,6 +1101,8 @@ static u32 iris_vpu_dec_persist_size(struct iris_inst *inst)
 		return hfi_buffer_persist_vp9d();
 	else if (inst->codec == V4L2_PIX_FMT_VP8)
 		return hfi_buffer_persist_vp8d();
+	else if (inst->codec == V4L2_PIX_FMT_MPEG2)
+		return hfi_buffer_persist_mpeg2d();
 	else if (inst->codec == V4L2_PIX_FMT_AV1) {
 		caps = inst->core->iris_platform_data->inst_caps;
 		if (inst->fw_caps[DRAP].value)
@@ -1176,7 +1183,7 @@ static u32 iris_vpu_dec_line_size(struct iris_inst *inst)
 	else if (inst->codec == V4L2_PIX_FMT_VP9)
 		return hfi_buffer_line_vp9d(width, height, out_min_count, is_opb,
 			num_vpp_pipes);
-	else if (inst->codec == V4L2_PIX_FMT_VP8)
+	else if (inst->codec == V4L2_PIX_FMT_VP8 || inst->codec == V4L2_PIX_FMT_MPEG2)
 		return hfi_buffer_line_vp8d(width, height, is_opb, num_vpp_pipes);
 	else if (inst->codec == V4L2_PIX_FMT_AV1)
 		return hfi_buffer_line_av1d(width, height, is_opb, num_vpp_pipes);

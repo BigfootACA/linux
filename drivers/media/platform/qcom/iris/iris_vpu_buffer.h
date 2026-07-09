@@ -69,6 +69,9 @@ struct iris_inst;
 #define VP8_NUM_PROBABILITY_TABLE_BUF (5 + 1)
 #define VP8_PROB_TABLE_SIZE (3840)
 
+#define QMATRIX_SIZE (sizeof(u32) * 128 + 256)
+#define MP2D_QPDUMP_SIZE (115200)
+
 #define SIZE_SEI_USERDATA			4096
 #define SIZE_DOLBY_RPU_METADATA (41 * 1024)
 #define H264_CABAC_HDR_RATIO_HD_TOT	1
