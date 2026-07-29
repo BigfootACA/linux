@@ -113,7 +113,7 @@ static int pmic_pdcharger_ulog_rpmsg_callback(struct rpmsg_device *rpdev, void *
 		pmic_pdcharger_ulog_handle_message(pg, data, len);
 		break;
 	default:
-		dev_err(&pg->rpdev->dev, "Unknown opcode %u\n", opcode);
+		dev_err_ratelimited(&pg->rpdev->dev, "Unknown opcode %u\n", opcode);
 		break;
 	}
 
