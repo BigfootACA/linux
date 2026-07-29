@@ -13830,6 +13830,14 @@ void ath12k_mac_update_freq_range(struct ath12k *ar,
 	if (!(freq_low && freq_high))
 		return;
 
+	/*
+	 * A radio capability and a regulatory range that do not overlap leave
+	 * an inverted window behind, which would otherwise widen the range in
+	 * the wrong direction.
+	 */
+	if (freq_low >= freq_high)
+		return;
+
 	if (ar->freq_range.start_freq || ar->freq_range.end_freq) {
 		ar->freq_range.start_freq = min(ar->freq_range.start_freq,
 						MHZ_TO_KHZ(freq_low));

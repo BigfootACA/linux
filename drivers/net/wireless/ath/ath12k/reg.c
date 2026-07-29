@@ -310,7 +310,7 @@ int ath12k_regd_update(struct ath12k *ar, bool init)
 		ath12k_mac_update_freq_range(ar, freq_low, freq_high);
 	}
 
-	if (supported_bands & WMI_HOST_WLAN_5GHZ_CAP && !ar->supports_6ghz) {
+	if (supported_bands & WMI_HOST_WLAN_5GHZ_CAP) {
 		if (ab->hw_params->single_pdev_only) {
 			phy_id = ar->pdev->cap.band[WMI_HOST_WLAN_5GHZ_CAP].phy_id;
 			reg_cap = &ab->hal_reg_cap[phy_id];
@@ -320,13 +320,21 @@ int ath12k_regd_update(struct ath12k *ar, bool init)
 		freq_high = min(reg_cap->high_5ghz_chan, ab->reg_freq_5ghz.end_freq);
 
 		ath12k_mac_update_freq_range(ar, freq_low, freq_high);
-	}
 
-	if (supported_bands & WMI_HOST_WLAN_5GHZ_CAP && ar->supports_6ghz) {
-		freq_low = max(reg_cap->low_5ghz_chan, ab->reg_freq_6ghz.start_freq);
-		freq_high = min(reg_cap->high_5ghz_chan, ab->reg_freq_6ghz.end_freq);
+		/*
+		 * A radio that covers both bands has to take the 6 GHz range
+		 * on top of the 5 GHz one. Keeping them exclusive would drop
+		 * 5 GHz entirely in a regulatory domain that has no 6 GHz
+		 * rules at all.
+		 */
+		if (ar->supports_6ghz) {
+			freq_low = max(reg_cap->low_5ghz_chan,
+				       ab->reg_freq_6ghz.start_freq);
+			freq_high = min(reg_cap->high_5ghz_chan,
+					ab->reg_freq_6ghz.end_freq);
 
-		ath12k_mac_update_freq_range(ar, freq_low, freq_high);
+			ath12k_mac_update_freq_range(ar, freq_low, freq_high);
+		}
 	}
 
 	/* If one of the radios within ah has already updated the regd for
