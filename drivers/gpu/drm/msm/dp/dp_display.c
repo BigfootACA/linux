@@ -564,7 +564,7 @@ static int msm_dp_init_sub_modules(struct msm_dp_display_private *dp)
 
 	phy = devm_phy_get(dev, "dp");
 	if (IS_ERR(phy))
-		return PTR_ERR(phy);
+		return dev_err_probe(dev, PTR_ERR(phy), "failed to get the DP PHY\n");
 
 	rc = phy_set_mode_ext(phy, PHY_MODE_DP,
 			      dp->msm_dp_display.is_edp ? PHY_SUBMODE_EDP : PHY_SUBMODE_DP);
@@ -1282,10 +1282,9 @@ static int msm_dp_display_probe(struct platform_device *pdev)
 		return rc;
 
 	rc = msm_dp_init_sub_modules(dp);
-	if (rc) {
-		DRM_ERROR("init sub module failed\n");
-		return -EPROBE_DEFER;
-	}
+	if (rc)
+		return dev_err_probe(&pdev->dev, -EPROBE_DEFER,
+				     "init sub module failed\n");
 
 	/* Store DP audio handle inside DP display */
 	dp->msm_dp_display.msm_dp_audio = dp->audio;
