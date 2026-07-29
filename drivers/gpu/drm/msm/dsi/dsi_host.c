@@ -1868,7 +1868,9 @@ static int dsi_host_parse_lane_data(struct msm_dsi_host *msm_host,
 
 static int dsi_populate_dsc_params(struct msm_dsi_host *msm_host, struct drm_dsc_config *dsc)
 {
-	int ret;
+	struct drm_dsc_rc_range_parameters rc_range[DSC_NUM_BUF_RANGES];
+	u8 first_line_bpg_offset;
+	int i, ret;
 
 	if (dsc->bits_per_pixel & 0xf) {
 		DRM_DEV_ERROR(&msm_host->pdev->dev, "DSI does not support fractional bits_per_pixel\n");
@@ -1896,6 +1898,24 @@ static int dsi_populate_dsc_params(struct msm_dsi_host *msm_host, struct drm_dsc
 	dsc->convert_rgb = 1;
 	dsc->vbr_enable = 0;
 
+	/*
+	 * Some DDICs hardcode their decoder rate-control model using the
+	 * DSC 1.2 first_line_bpg_offset formula even though they advertise
+	 * DSC 1.1.  The pre-SCR tables in drm_dsc_setup_rc_params() would
+	 * silently overwrite such a panel supplied value and leave the
+	 * encoder and the decoder with diverging RC models.  Preserve a
+	 * panel supplied first_line_bpg_offset across the table lookup.
+	 */
+	first_line_bpg_offset = dsc->first_line_bpg_offset;
+
+	/*
+	 * Likewise, a DDIC may follow the DSC C model reference configuration
+	 * where the pre-SCR tables follow VESA DSC 1.1 Table E-5, or the other
+	 * way around.  A range_max_qp of 0 is not a valid configuration, so
+	 * treat a non-zero panel supplied value as an override.
+	 */
+	memcpy(rc_range, dsc->rc_range_params, sizeof(rc_range));
+
 	drm_dsc_set_const_params(dsc);
 	drm_dsc_set_rc_buf_thresh(dsc);
 
@@ -1905,6 +1925,13 @@ static int dsi_populate_dsc_params(struct msm_dsi_host *msm_host, struct drm_dsc
 		DRM_DEV_ERROR(&msm_host->pdev->dev, "could not find DSC RC parameters\n");
 		return ret;
 	}
+
+	if (first_line_bpg_offset)
+		dsc->first_line_bpg_offset = first_line_bpg_offset;
+
+	for (i = 0; i < DSC_NUM_BUF_RANGES; i++)
+		if (rc_range[i].range_max_qp)
+			dsc->rc_range_params[i].range_max_qp = rc_range[i].range_max_qp;
 
 	dsc->initial_scale_value = drm_dsc_initial_scale_value(dsc);
 	dsc->line_buf_depth = dsc->bits_per_component + 1;
