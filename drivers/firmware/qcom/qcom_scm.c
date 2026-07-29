@@ -25,6 +25,7 @@
 #include <linux/of_irq.h>
 #include <linux/of_platform.h>
 #include <linux/of_reserved_mem.h>
+#include <linux/panic_notifier.h>
 #include <linux/platform_device.h>
 #include <linux/reset-controller.h>
 #include <linux/remoteproc.h>
@@ -57,6 +58,7 @@ struct qcom_scm {
 	int scm_vote_count;
 
 	u64 dload_mode_addr;
+	struct notifier_block panic_nb;
 
 	struct qcom_tzmem_pool *mempool;
 	unsigned int wq_cnt;
@@ -599,6 +601,15 @@ static void qcom_scm_set_download_mode(u32 dload_mode)
 
 	if (ret)
 		dev_err(__scm->dev, "failed to set download mode: %d\n", ret);
+}
+
+static int qcom_scm_panic(struct notifier_block *nb, unsigned long event,
+			  void *ptr)
+{
+	if (download_mode)
+		qcom_scm_set_download_mode(download_mode);
+
+	return NOTIFY_OK;
 }
 
 /**
@@ -3048,6 +3059,16 @@ static int qcom_scm_probe(struct platform_device *pdev)
 	 * disabled below by a clean shutdown/reboot.
 	 */
 	qcom_scm_set_download_mode(download_mode);
+
+	if (scm->dload_mode_addr) {
+		scm->panic_nb.notifier_call = qcom_scm_panic;
+		scm->panic_nb.priority = INT_MAX;
+		ret = atomic_notifier_chain_register(&panic_notifier_list,
+						     &scm->panic_nb);
+		if (ret)
+			dev_warn(scm->dev,
+				 "failed to register panic notifier: %d\n", ret);
+	}
 
 	/*
 	 * Disable SDI if indicated by DT that it is enabled by default.
