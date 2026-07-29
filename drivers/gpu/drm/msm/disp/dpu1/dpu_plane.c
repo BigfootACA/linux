@@ -9,6 +9,7 @@
 
 #include <linux/debugfs.h>
 #include <linux/dma-buf.h>
+#include <linux/of.h>
 
 #include <drm/drm_atomic.h>
 #include <drm/drm_atomic_uapi.h>
@@ -1622,6 +1623,20 @@ static void dpu_plane_atomic_update(struct drm_plane *plane,
 	struct dpu_plane *pdpu = to_dpu_plane(plane);
 	struct drm_plane_state *new_state = drm_atomic_get_new_plane_state(state,
 									   plane);
+	struct drm_plane_state *old_state = drm_atomic_get_old_plane_state(state,
+									   plane);
+	struct drm_crtc_state *new_crtc_state = NULL;
+	bool skip_resume_first_enable;
+
+	if (new_state->crtc)
+		new_crtc_state = drm_atomic_get_new_crtc_state(state, new_state->crtc);
+
+	skip_resume_first_enable = of_machine_is_compatible("lenovo,tb321fu") &&
+		old_state && new_crtc_state &&
+		plane->type == DRM_PLANE_TYPE_PRIMARY &&
+		!old_state->visible && new_state->visible &&
+		new_crtc_state->active &&
+		drm_atomic_crtc_needs_modeset(new_crtc_state);
 
 	pdpu->is_error = false;
 
@@ -1629,6 +1644,13 @@ static void dpu_plane_atomic_update(struct drm_plane *plane,
 
 	if (!new_state->visible) {
 		_dpu_plane_atomic_disable(plane);
+	} else if (skip_resume_first_enable) {
+		/*
+		 * On TB321FU, programming the primary SSPP during the first
+		 * visible modeset commit after natural display resume can reset
+		 * the device. Skip this first programming pass; later commits
+		 * update the SSPP normally once the display pipeline is stable.
+		 */
 	} else {
 		dpu_plane_sspp_atomic_update(plane, new_state);
 	}
