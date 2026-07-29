@@ -19,6 +19,11 @@
 
 #define GET_CHG_ULOG_REQ		0x18
 #define SET_CHG_ULOG_PROP_REQ		0x19
+/*
+ * Besides answering GET_CHG_ULOG_REQ, some firmware also pushes single log
+ * lines as they are produced, in a buffer of its own size.
+ */
+#define CHG_ULOG_IND			0x53
 
 #define LOG_DEFAULT_TIME_MS		1000
 
@@ -78,21 +83,14 @@ static void pmic_pdcharger_ulog_work(struct work_struct *work)
 }
 
 static void pmic_pdcharger_ulog_handle_message(struct pmic_pdcharger_ulog *pg,
-					       struct get_ulog_resp_msg *resp_msg,
-					       size_t len)
+					       char *buf, size_t len)
 {
-	char *token, *buf = resp_msg->buf;
+	char *token;
 
-	if (len != sizeof(*resp_msg)) {
-		dev_err(&pg->rpdev->dev, "Expected data length: %zu, received: %zu\n",
-			sizeof(*resp_msg), len);
-		return;
-	}
-
-	buf[MAX_ULOG_SIZE - 1] = '\0';
+	buf[len - 1] = '\0';
 
 	do {
-		token = strsep((char **)&buf, "\n");
+		token = strsep(&buf, "\n");
 		if (token && strlen(token))
 			trace_pmic_pdcharger_ulog_msg(token);
 	} while (token);
@@ -103,14 +101,31 @@ static int pmic_pdcharger_ulog_rpmsg_callback(struct rpmsg_device *rpdev, void *
 {
 	struct pmic_pdcharger_ulog *pg = dev_get_drvdata(&rpdev->dev);
 	struct pmic_pdcharger_ulog_hdr *hdr = data;
+	struct get_ulog_resp_msg *resp_msg = data;
 	u32 opcode;
 
 	opcode = le32_to_cpu(hdr->opcode);
 
 	switch (opcode) {
 	case GET_CHG_ULOG_REQ:
+		if (len != sizeof(*resp_msg)) {
+			dev_err(&pg->rpdev->dev, "Expected data length: %zu, received: %d\n",
+				sizeof(*resp_msg), len);
+			break;
+		}
+
 		schedule_delayed_work(&pg->ulog_work, msecs_to_jiffies(LOG_DEFAULT_TIME_MS));
-		pmic_pdcharger_ulog_handle_message(pg, data, len);
+		pmic_pdcharger_ulog_handle_message(pg, resp_msg->buf, MAX_ULOG_SIZE);
+		break;
+	case CHG_ULOG_IND:
+		/* Pushed by the firmware, so there is nothing to reschedule */
+		if (len <= sizeof(*hdr)) {
+			dev_err(&pg->rpdev->dev, "Empty log indication\n");
+			break;
+		}
+
+		pmic_pdcharger_ulog_handle_message(pg, data + sizeof(*hdr),
+						   len - sizeof(*hdr));
 		break;
 	default:
 		dev_err_ratelimited(&pg->rpdev->dev, "Unknown opcode %u\n", opcode);
