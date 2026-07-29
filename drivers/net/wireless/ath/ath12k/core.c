@@ -1305,6 +1305,16 @@ int ath12k_core_qmi_firmware_ready(struct ath12k_base *ab)
 	struct ath12k_hw_group *ag = ath12k_ab_to_ag(ab);
 	int ret, i;
 
+	/*
+	 * The firmware can announce itself again after a recovery attempt has
+	 * already given up and torn the ring configuration down. Everything
+	 * below walks it, so refuse instead of dereferencing NULL.
+	 */
+	if (!ab->hal.srng_config) {
+		ath12k_err(ab, "firmware ready without an initialized HAL\n");
+		return -EINVAL;
+	}
+
 	ret = ath12k_core_start_firmware(ab, ab->fw_mode);
 	if (ret) {
 		ath12k_err(ab, "failed to start firmware: %d\n", ret);
@@ -1400,15 +1410,11 @@ static int ath12k_core_reconfigure_on_crash(struct ath12k_base *ab)
 
 	ret = ath12k_core_qmi_firmware_ready(ab);
 	if (ret)
-		goto err_hal_srng_deinit;
+		return ret;
 
 	clear_bit(ATH12K_FLAG_RECOVERY, &ab->dev_flags);
 
 	return 0;
-
-err_hal_srng_deinit:
-	ath12k_hal_srng_deinit(ab);
-	return ret;
 }
 
 static void ath12k_rfkill_work(struct work_struct *work)
