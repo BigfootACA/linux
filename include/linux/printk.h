@@ -145,6 +145,27 @@ void early_printk(const char *s, ...) { }
 
 struct dev_printk_info;
 
+/**
+ * struct printk_ringbuffer_regions - Backing memory of the printk ringbuffer
+ * @text_data: Buffer holding the record text
+ * @text_data_size: Size of @text_data in bytes
+ * @descs: Array of record descriptors
+ * @descs_size: Size of @descs in bytes
+ * @infos: Array of record meta data
+ * @infos_size: Size of @infos in bytes
+ *
+ * Lets a crash dump collector describe the ringbuffer to an external tool
+ * without exposing the ringbuffer internals.
+ */
+struct printk_ringbuffer_regions {
+	void *text_data;
+	size_t text_data_size;
+	void *descs;
+	size_t descs_size;
+	void *infos;
+	size_t infos_size;
+};
+
 #ifdef CONFIG_PRINTK
 asmlinkage __printf(4, 0)
 int vprintk_emit(int facility, int level,
@@ -195,6 +216,7 @@ extern void wake_up_klogd(void);
 
 char *log_buf_addr_get(void);
 u32 log_buf_len_get(void);
+void log_buf_regions_get(struct printk_ringbuffer_regions *regions);
 void log_buf_vmcoreinfo_setup(void);
 void __init setup_log_buf(int early);
 __printf(1, 2) void dump_stack_set_arch_desc(const char *fmt, ...);
@@ -269,6 +291,11 @@ static inline char *log_buf_addr_get(void)
 static inline u32 log_buf_len_get(void)
 {
 	return 0;
+}
+
+static inline void log_buf_regions_get(struct printk_ringbuffer_regions *regions)
+{
+	memset(regions, 0, sizeof(*regions));
 }
 
 static inline void log_buf_vmcoreinfo_setup(void)

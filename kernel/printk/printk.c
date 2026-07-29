@@ -573,6 +573,26 @@ u32 log_buf_len_get(void)
 	return log_buf_len;
 }
 
+/**
+ * log_buf_regions_get() - Describe the memory backing the printk ringbuffer
+ * @regions: Filled in with the address and size of each region
+ *
+ * Meant for crash dump collectors that hand the raw ringbuffer to an external
+ * tool, so that they do not have to know how the ringbuffer is laid out.
+ */
+void log_buf_regions_get(struct printk_ringbuffer_regions *regions)
+{
+	struct prb_desc_ring *desc_ring = &prb->desc_ring;
+	unsigned int count = _DESCS_COUNT(desc_ring->count_bits);
+
+	regions->text_data = prb->text_data_ring.data;
+	regions->text_data_size = _DATA_SIZE(prb->text_data_ring.size_bits);
+	regions->descs = desc_ring->descs;
+	regions->descs_size = count * sizeof(*desc_ring->descs);
+	regions->infos = desc_ring->infos;
+	regions->infos_size = count * sizeof(*desc_ring->infos);
+}
+
 /*
  * Define how much of the log buffer we could take at maximum. The value
  * must be greater than two. Note that only half of the buffer is available
