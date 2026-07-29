@@ -16,6 +16,20 @@ description: |
 
 allOf:
   - $ref: common.yaml#
+  - if:
+      not:
+        required:
+          - kinetic,follower-mode
+    then:
+      required:
+        - enable-gpios
+  # A chip cannot be a follower and drive one at the same time
+  - if:
+      required:
+        - kinetic,follower-mode
+    then:
+      properties:
+        kinetic,follower: false
 
 properties:
   compatible:
@@ -55,12 +69,25 @@ properties:
     description: Set if we want to output bias power supply for LCD.
     type: boolean
 
+  kinetic,follower:
+    $ref: /schemas/types.yaml#/definitions/phandle
+    description: |
+      Phandle to a second KTZ8866 that drives the remaining LED strings of the
+      same panel. Brightness and enable state are mirrored to it so that both
+      halves stay in lockstep behind a single backlight device.
+
+  kinetic,follower-mode:
+    description: |
+      Set on a chip that is referenced by another KTZ8866 through
+      kinetic,follower. Such a chip still applies its own configuration but
+      does not register a backlight device of its own.
+    type: boolean
+
 required:
   - compatible
   - reg
   - vddpos-supply
   - vddneg-supply
-  - enable-gpios
 
 unevaluatedProperties: false
 

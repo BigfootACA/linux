@@ -39,6 +39,7 @@
 #define PWM_RAMP_TIME 0x15
 
 /* definition */
+#define PWM_ENABLE_BIT BIT(0)
 #define BL_EN_BIT BIT(6)
 #define LCD_BIAS_EN 0x9F
 #define PWM_HYST 0x5
@@ -46,7 +47,10 @@
 struct ktz8866 {
 	struct i2c_client *client;
 	struct regmap *regmap;
+	struct ktz8866 *follower;
+	struct backlight_device *backlight_dev;
 	bool led_on;
+	bool shut_down;
 	struct gpio_desc *enable_gpio;
 };
 
@@ -68,11 +72,8 @@ static int ktz8866_update_bits(struct ktz8866 *ktz, unsigned int reg,
 	return regmap_update_bits(ktz->regmap, reg, mask, val);
 }
 
-static int ktz8866_backlight_update_status(struct backlight_device *backlight_dev)
+static void ktz8866_set_brightness(struct ktz8866 *ktz, unsigned int brightness)
 {
-	struct ktz8866 *ktz = bl_get_data(backlight_dev);
-	unsigned int brightness = backlight_get_brightness(backlight_dev);
-
 	if (!ktz->led_on && brightness > 0) {
 		ktz8866_update_bits(ktz, BL_EN, BL_EN_BIT, BL_EN_BIT);
 		ktz->led_on = true;
@@ -84,6 +85,25 @@ static int ktz8866_backlight_update_status(struct backlight_device *backlight_de
 	/* Set brightness */
 	ktz8866_write(ktz, BL_BRT_LSB, brightness & 0x7);
 	ktz8866_write(ktz, BL_BRT_MSB, (brightness >> 3) & 0xFF);
+}
+
+static int ktz8866_backlight_update_status(struct backlight_device *backlight_dev)
+{
+	struct ktz8866 *ktz = bl_get_data(backlight_dev);
+	unsigned int brightness = backlight_get_brightness(backlight_dev);
+
+	/*
+	 * The panel turns the backlight off on its way down, which happens
+	 * after the i2c controller has already been shut down. There is
+	 * nothing left to write to by then.
+	 */
+	if (ktz->shut_down)
+		return 0;
+
+	ktz8866_set_brightness(ktz, brightness);
+
+	if (ktz->follower)
+		ktz8866_set_brightness(ktz->follower, brightness);
 
 	return 0;
 }
@@ -96,6 +116,8 @@ static const struct backlight_ops ktz8866_backlight_ops = {
 static void ktz8866_init(struct ktz8866 *ktz)
 {
 	unsigned int val = 0;
+
+	ktz8866_update_bits(ktz, BL_CFG1, PWM_ENABLE_BIT, 0);
 
 	if (!of_property_read_u32(ktz->client->dev.of_node, "current-num-sinks", &val))
 		ktz8866_write(ktz, BL_EN, BIT(val) - 1);
@@ -124,6 +146,64 @@ static void ktz8866_init(struct ktz8866 *ktz)
 		ktz8866_write(ktz, LCD_BIAS_CFG1, LCD_BIAS_EN);
 }
 
+static struct i2c_driver ktz8866_driver;
+
+static int ktz8866_get_follower(struct ktz8866 *ktz)
+{
+	struct device *dev = &ktz->client->dev;
+	struct i2c_client *follower_client;
+	struct device_node *follower_np;
+	struct ktz8866 *follower;
+	int ret = 0;
+
+	follower_np = of_parse_phandle(dev->of_node, "kinetic,follower", 0);
+	if (!follower_np)
+		return 0;
+
+	if (!of_property_read_bool(follower_np, "kinetic,follower-mode")) {
+		ret = dev_err_probe(dev, -EINVAL,
+				    "%pOF is not in follower mode\n",
+				    follower_np);
+		goto out;
+	}
+
+	follower_client = of_find_i2c_device_by_node(follower_np);
+	if (!follower_client) {
+		ret = dev_err_probe(dev, -EPROBE_DEFER,
+				    "follower chip not registered yet\n");
+		goto out;
+	}
+
+	if (follower_client->dev.driver != &ktz8866_driver.driver) {
+		ret = dev_err_probe(dev, -EPROBE_DEFER,
+				    "follower chip not bound yet\n");
+		goto out_put;
+	}
+
+	follower = i2c_get_clientdata(follower_client);
+	if (!follower) {
+		ret = dev_err_probe(dev, -EPROBE_DEFER,
+				    "follower chip not probed yet\n");
+		goto out_put;
+	}
+
+	if (!device_link_add(dev, &follower_client->dev,
+			     DL_FLAG_AUTOREMOVE_CONSUMER)) {
+		ret = dev_err_probe(dev, -EINVAL,
+				    "failed to link against the follower\n");
+		goto out_put;
+	}
+
+	ktz->follower = follower;
+
+out_put:
+	put_device(&follower_client->dev);
+out:
+	of_node_put(follower_np);
+
+	return ret;
+}
+
 static int ktz8866_probe(struct i2c_client *client)
 {
 	struct backlight_device *backlight_dev;
@@ -140,6 +220,10 @@ static int ktz8866_probe(struct i2c_client *client)
 	if (IS_ERR(ktz->regmap))
 		return dev_err_probe(&client->dev, PTR_ERR(ktz->regmap), "failed to init regmap\n");
 
+	ret = ktz8866_get_follower(ktz);
+	if (ret)
+		return ret;
+
 	ret = devm_regulator_get_enable(&client->dev, "vddpos");
 	if (ret)
 		return dev_err_probe(&client->dev, ret, "get regulator vddpos failed\n");
@@ -150,6 +234,13 @@ static int ktz8866_probe(struct i2c_client *client)
 	ktz->enable_gpio = devm_gpiod_get_optional(&client->dev, "enable", GPIOD_OUT_HIGH);
 	if (IS_ERR(ktz->enable_gpio))
 		return PTR_ERR(ktz->enable_gpio);
+
+	ktz8866_init(ktz);
+
+	if (of_property_read_bool(client->dev.of_node, "kinetic,follower-mode")) {
+		i2c_set_clientdata(client, ktz);
+		return 0;
+	}
 
 	memset(&props, 0, sizeof(props));
 	props.type = BACKLIGHT_RAW;
@@ -163,19 +254,43 @@ static int ktz8866_probe(struct i2c_client *client)
 		return dev_err_probe(&client->dev, PTR_ERR(backlight_dev),
 				"failed to register backlight device\n");
 
-	ktz8866_init(ktz);
-
-	i2c_set_clientdata(client, backlight_dev);
+	ktz->backlight_dev = backlight_dev;
+	i2c_set_clientdata(client, ktz);
 	backlight_update_status(backlight_dev);
 
 	return 0;
 }
 
+/*
+ * Devices are shut down in reverse registration order, and this one is a
+ * child of the i2c controller, so it is reached while the bus still works.
+ * The display is torn down later, so turn the backlight off here rather
+ * than leaving it lit for the rest of the shutdown.
+ */
+static void ktz8866_shutdown(struct i2c_client *client)
+{
+	struct ktz8866 *ktz = i2c_get_clientdata(client);
+
+	if (!ktz || !ktz->backlight_dev)
+		return;
+
+	ktz->backlight_dev->props.brightness = 0;
+	backlight_update_status(ktz->backlight_dev);
+
+	ktz->shut_down = true;
+	if (ktz->follower)
+		ktz->follower->shut_down = true;
+}
+
 static void ktz8866_remove(struct i2c_client *client)
 {
-	struct backlight_device *backlight_dev = i2c_get_clientdata(client);
-	backlight_dev->props.brightness = 0;
-	backlight_update_status(backlight_dev);
+	struct ktz8866 *ktz = i2c_get_clientdata(client);
+
+	if (!ktz || !ktz->backlight_dev)
+		return;
+
+	ktz->backlight_dev->props.brightness = 0;
+	backlight_update_status(ktz->backlight_dev);
 }
 
 static const struct i2c_device_id ktz8866_ids[] = {
@@ -199,6 +314,7 @@ static struct i2c_driver ktz8866_driver = {
 	},
 	.probe = ktz8866_probe,
 	.remove = ktz8866_remove,
+	.shutdown = ktz8866_shutdown,
 	.id_table = ktz8866_ids,
 };
 
