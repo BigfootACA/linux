@@ -699,6 +699,18 @@ config TOUCHSCREEN_IMAGIS
 	  To compile this driver as a module, choose M here: the
 	  module will be called imagis.
 
+config TOUCHSCREEN_NOVATEK_NT36532
+	tristate "Novatek NT36532 SPI touchscreen controller"
+	depends on SPI_MASTER
+	help
+	  Say Y here if you have a Novatek NT36532 TDDI touchscreen
+	  controller connected over SPI, as found on the Xiaomi Pad 8 Pro.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called novatek-nt36532.
+
 config TOUCHSCREEN_NT36XXX
 	tristate "Novatek NT36XXX In-Cell I2C touchscreen controller"
 	depends on I2C

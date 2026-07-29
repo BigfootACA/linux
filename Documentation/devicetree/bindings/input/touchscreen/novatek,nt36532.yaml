@@ -1,0 +1,83 @@
+# SPDX-License-Identifier: GPL-2.0-only OR BSD-2-Clause
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/input/touchscreen/novatek,nt36532.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Novatek NT36532 SPI touchscreen controller
+
+maintainers:
+  - BigfootACA <bigfoot@classfun.cn>
+
+description:
+  The Novatek NT36532 is the touch half of a TDDI controller that also acts as
+  the display driver IC. It has no reset pin of its own: the panel drives the
+  reset line of the shared die, so this device has to be linked to its panel to
+  be brought up again after every display power cycle.
+
+allOf:
+  - $ref: touchscreen.yaml#
+  - $ref: /schemas/spi/spi-peripheral-props.yaml#
+
+properties:
+  compatible:
+    const: novatek,nt36532
+
+  reg:
+    maxItems: 1
+
+  interrupts:
+    maxItems: 1
+
+  panel:
+    $ref: /schemas/types.yaml#/definitions/phandle
+    description:
+      Phandle to the panel this controller shares its die with.
+
+  vdd-supply:
+    description: analog supply, AVDD
+
+  vddio-supply:
+    description: digital and interface supply
+
+required:
+  - compatible
+  - reg
+  - interrupts
+  - panel
+  - vdd-supply
+  - vddio-supply
+  - touchscreen-size-x
+  - touchscreen-size-y
+
+unevaluatedProperties: false
+
+examples:
+  - |
+    #include <dt-bindings/gpio/gpio.h>
+    #include <dt-bindings/interrupt-controller/irq.h>
+
+    spi {
+        #address-cells = <1>;
+        #size-cells = <0>;
+
+        touchscreen@0 {
+            compatible = "novatek,nt36532";
+            reg = <0>;
+            spi-max-frequency = <19200000>;
+
+            interrupt-parent = <&tlmm>;
+            interrupts = <162 IRQ_TYPE_EDGE_RISING>;
+
+            vdd-supply = <&touch_avdd>;
+            vddio-supply = <&vreg_l12b_1p9>;
+
+            panel = <&panel0>;
+
+            touchscreen-size-x = <2136>;
+            touchscreen-size-y = <3200>;
+            touchscreen-swapped-x-y;
+        };
+    };
+
+...
