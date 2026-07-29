@@ -1356,7 +1356,7 @@ static void qcom_battmgr_sc8280xp_callback(struct qcom_battmgr *battmgr,
 		battmgr->error = 0;
 		break;
 	default:
-		dev_warn(battmgr->dev, "unknown message %#x\n", opcode);
+		dev_warn_ratelimited(battmgr->dev, "unknown message %#x\n", opcode);
 		break;
 	}
 
@@ -1560,7 +1560,7 @@ static void qcom_battmgr_sm8350_callback(struct qcom_battmgr *battmgr,
 		battmgr->error = 0;
 		break;
 	default:
-		dev_warn(battmgr->dev, "unknown message %#x\n", opcode);
+		dev_warn_ratelimited(battmgr->dev, "unknown message %#x\n", opcode);
 		break;
 	}
 
