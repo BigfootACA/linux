@@ -27,6 +27,7 @@ properties:
           - qcom,wcn6750-pmu
           - qcom,wcn6855-pmu
           - qcom,wcn7850-pmu
+          - qcom,wcn7860-pmu
 
   vdd-supply:
     description: VDD supply regulator handle
@@ -178,6 +179,19 @@ allOf:
       required:
         - vdd-supply
         - vddio-supply
+        - vddaon-supply
+        - vdddig-supply
+        - vddrfa1p2-supply
+        - vddrfa1p8-supply
+  - if:
+      properties:
+        compatible:
+          contains:
+            const: qcom,wcn7860-pmu
+    then:
+      required:
+        - vddio-supply
+        - vddio1p2-supply
         - vddaon-supply
         - vdddig-supply
         - vddrfa1p2-supply
