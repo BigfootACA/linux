@@ -84,6 +84,13 @@ struct dsi_pll_7nm {
 
 	u64 vco_current_rate;
 
+	/*
+	 * Set once dsi_pll_7nm_vco_set_rate() has programmed the PLL.  Not the
+	 * same as a non-zero vco_current_rate, which dsi_pll_7nm_vco_recalc_rate()
+	 * also fills in from whatever the bootloader left behind.
+	 */
+	bool vco_rate_programmed;
+
 	/* protects REG_DSI_7nm_PHY_CMN_CLK_CFG0 register */
 	spinlock_t postdiv_lock;
 
@@ -355,6 +362,7 @@ static int dsi_pll_7nm_vco_set_rate(struct clk_hw *hw, unsigned long rate,
 	    parent_rate);
 
 	pll_7nm->vco_current_rate = rate;
+	pll_7nm->vco_rate_programmed = true;
 
 	dsi_pll_setup_config(&config);
 
@@ -496,6 +504,18 @@ static int dsi_pll_7nm_vco_prepare(struct clk_hw *hw)
 	struct dsi_pll_7nm *pll_7nm = to_pll_7nm(hw);
 	int rc;
 
+	/*
+	 * The dispcc byte and pixel RCGs are flagged CLK_OPS_PARENT_ENABLE and
+	 * stay orphans until this PHY registers its clk provider.  When the
+	 * core finally reparents them it prepares and enables the whole PLL
+	 * chain even though the PHY is not powered up yet, and undoes that
+	 * again right afterwards.  The PLL cannot lock in that state - every
+	 * register reads back as zero - so keep the hardware untouched instead
+	 * of failing and leaving the prepare and enable counts unbalanced.
+	 */
+	if (!pll_7nm->vco_rate_programmed)
+		return 0;
+
 	dsi_pll_enable_pll_bias(pll_7nm);
 	if (pll_7nm->slave)
 		dsi_pll_enable_pll_bias(pll_7nm->slave);
@@ -548,6 +568,10 @@ static void dsi_pll_disable_sub(struct dsi_pll_7nm *pll)
 static void dsi_pll_7nm_vco_unprepare(struct clk_hw *hw)
 {
 	struct dsi_pll_7nm *pll_7nm = to_pll_7nm(hw);
+
+	/* Never brought up, see dsi_pll_7nm_vco_prepare() */
+	if (!pll_7nm->vco_rate_programmed)
+		return;
 
 	/*
 	 * To avoid any stray glitches while abruptly powering down the PLL
