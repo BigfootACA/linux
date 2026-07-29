@@ -996,7 +996,14 @@ static int qcom_pas_probe(struct platform_device *pdev)
 		ret = qcom_pas_get_boot_state_from_smp2p(pas,
 						      &ready_state,
 						      &crash_state);
-		if (ret) {
+		/*
+		 * The remote only publishes its SMP2P entry once it is running,
+		 * so -ENODEV just means nothing preloaded it for us and the
+		 * firmware has to be loaded the normal way.
+		 */
+		if (ret == -ENODEV) {
+			dev_dbg(&pdev->dev, "not preloaded, loading the firmware\n");
+		} else if (ret) {
 			dev_warn(&pdev->dev, "Failed to read SMP2P state; falling back to firmware load\n");
 		} else if (ready_state) {
 			pas->preloaded = true;
