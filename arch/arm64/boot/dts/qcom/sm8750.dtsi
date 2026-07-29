@@ -3438,7 +3438,7 @@
 
 		pdc: interrupt-controller@b220000 {
 			compatible = "qcom,sm8750-pdc", "qcom,pdc";
-			reg = <0x0 0x0b220000 0x0 0x10000>, <0x0 0x164400f0 0x0 0x64>;
+			reg = <0x0 0x0b220000 0x0 0x30000>, <0x0 0x164400f0 0x0 0x64>;
 
 			qcom,pdc-ranges = <0 745 51>, <51 527 47>,
 					  <98 609 32>, <130 717 12>,
