@@ -39,6 +39,7 @@ properties:
           - qcom,sm8250-tcsr
           - qcom,sm8350-tcsr
           - qcom,sm8450-tcsr
+          - qcom,sm8750-tcsr-regs
           - qcom,tcsr-apq8064
           - qcom,tcsr-apq8084
           - qcom,tcsr-ipq5018
