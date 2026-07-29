@@ -1,0 +1,94 @@
+# SPDX-License-Identifier: GPL-2.0-only OR BSD-2-Clause
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/display/panel/novatek,nt36532.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Novatek NT36532 based DSI display panels
+
+maintainers:
+  - BigfootACA <bigfoot@classfun.cn>
+
+description:
+  The Novatek NT36532 is a TDDI (touch and display driver integration) DSI
+  panel IC. The panels described here are dual-DSI DSC video mode modules,
+  second-sourced from BOE Technology and China Star Optoelectronics
+  Technology (CSOT).
+
+allOf:
+  - $ref: panel-common-dual.yaml#
+
+properties:
+  compatible:
+    items:
+      - enum:
+          - xiaomi,p81-boe
+          - xiaomi,p81-csot
+      - const: novatek,nt36532
+
+  reg:
+    maxItems: 1
+
+  reset-gpios:
+    maxItems: 1
+
+  lcd-id-gpios:
+    description:
+      Strapping pin that tells the second sourced modules apart. When present
+      it overrides the module selected by the compatible.
+    maxItems: 1
+
+  vddi-supply:
+    description: logic supply for the panel and the driver IC
+
+  backlight: true
+  ports: true
+
+required:
+  - compatible
+  - reg
+  - vddi-supply
+  - reset-gpios
+  - ports
+
+unevaluatedProperties: false
+
+examples:
+  - |
+    #include <dt-bindings/gpio/gpio.h>
+
+    dsi {
+        #address-cells = <1>;
+        #size-cells = <0>;
+
+        panel@0 {
+            compatible = "xiaomi,p81-boe", "novatek,nt36532";
+            reg = <0>;
+
+            vddi-supply = <&vreg_l12b_1p9>;
+            reset-gpios = <&tlmm 98 GPIO_ACTIVE_LOW>;
+            lcd-id-gpios = <&tlmm 100 GPIO_ACTIVE_HIGH>;
+            backlight = <&backlight_primary>;
+
+            ports {
+                #address-cells = <1>;
+                #size-cells = <0>;
+
+                port@0 {
+                    reg = <0>;
+                    panel_in_0: endpoint {
+                        remote-endpoint = <&mdss_dsi0_out>;
+                    };
+                };
+
+                port@1 {
+                    reg = <1>;
+                    panel_in_1: endpoint {
+                        remote-endpoint = <&mdss_dsi1_out>;
+                    };
+                };
+            };
+        };
+    };
+
+...
