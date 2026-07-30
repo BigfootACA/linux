@@ -3184,11 +3184,14 @@ static int iommu_setup_default_domain(struct iommu_group *group,
 	 */
 	direct_failed = false;
 	for_each_group_device(group, gdev) {
-		if (iommu_create_device_direct_mappings(dom, gdev->dev)) {
+		int direct_ret = iommu_create_device_direct_mappings(dom, gdev->dev);
+
+		if (direct_ret) {
 			direct_failed = true;
 			dev_warn_once(
 				gdev->dev->iommu->iommu_dev->dev,
-				"IOMMU driver was not able to establish FW requested direct mapping.");
+				"IOMMU driver was not able to establish FW requested direct mapping for %s: %d\n",
+				dev_name(gdev->dev), direct_ret);
 		}
 	}
 
