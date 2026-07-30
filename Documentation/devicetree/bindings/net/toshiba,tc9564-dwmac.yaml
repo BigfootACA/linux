@@ -58,6 +58,13 @@ properties:
     enum:
       - pci1179,0220 # Toshiba TC9564 (a.k.a. Qualcomm QPS615)
 
+  toshiba,aspm-quirk:
+    type: boolean
+    description:
+      Disable ASPM L1 and its substates on this PCI function's endpoint link.
+      Set this only on platforms where TC956x L1 entry gates shared clocks and
+      stalls a neighbouring device.
+
   gpio:
     type: object
     description: Embedded GPIO controller

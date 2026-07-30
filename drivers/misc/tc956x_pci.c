@@ -753,13 +753,15 @@ tc956x_function_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	 * so an *idle* TC956X reduces the *other* one to ~0.6 Gbit/s of a 10G
 	 * link, with every lost frame showing up as mmc_rx_fifo_overflow.
 	 */
-	ret = pci_disable_link_state(pdev, PCIE_LINK_STATE_L1 |
-					   PCIE_LINK_STATE_L1_1 |
-					   PCIE_LINK_STATE_L1_2 |
-					   PCIE_LINK_STATE_L1_1_PCIPM |
-					   PCIE_LINK_STATE_L1_2_PCIPM);
-	if (ret)
-		dev_warn(dev, "failed to disable ASPM L1: %d\n", ret);
+	if (of_property_present(dev->of_node, "toshiba,aspm-quirk")) {
+		ret = pci_disable_link_state(pdev, PCIE_LINK_STATE_L1 |
+						   PCIE_LINK_STATE_L1_1 |
+						   PCIE_LINK_STATE_L1_2 |
+						   PCIE_LINK_STATE_L1_1_PCIPM |
+						   PCIE_LINK_STATE_L1_2_PCIPM);
+		if (ret)
+			dev_warn(dev, "failed to disable ASPM L1: %d\n", ret);
+	}
 
 	/* Function 1 gets -EPROBE_DEFER until function 0 sets platform data */
 	chip = chip_get(pdev);
