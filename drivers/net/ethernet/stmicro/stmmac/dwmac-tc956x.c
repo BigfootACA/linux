@@ -33,9 +33,30 @@
 #define DRIVER_NAME			"dwmac-tc956x"
 
 #define TC956X_PTP_CLOCK_RATE		(250 * HZ_PER_MHZ)
+#define TC956X_MAC_CLOCK_RATE		(125 * HZ_PER_MHZ)
 
+/*
+ * The MTL has one ~46KiB TX and one ~46KiB RX memory per port; HW_FEATURE1 can
+ * only encode powers of two and so rounds both up to 64KiB, which is not
+ * addressable.  Programming RQS beyond the physical memory makes the MAC
+ * declare every packet an overflow and pass zero traffic (48KiB and 56KiB were
+ * both measured to wedge it completely), so keep a comfortable margin.
+ */
 #define TC956X_RX_FIFO_KB		32	/* Shared by all RX queues */
 #define TC956X_TX_FIFO_KB		8	/* Shared by all TX queues */
+
+/*
+ * The MAC has no RSS (HW_FEATURE reports "Receive Side Scaling: N"), so every
+ * received flow lands on one queue and extra RX queues buy nothing.  Extra TX
+ * queues do let more CPUs share the completion work, but they also make TX
+ * aggressive enough to starve RX in the DMA arbiter, which is a fixed-priority
+ * one: with two TX queues a bidirectional test starts dropping ~2% of received
+ * frames in the MTL FIFO, and with four it collapses to 9.1 + 2.4 Gbit/s with
+ * 4% dropped.  One queue each direction reaches line rate on its own and stays
+ * balanced when both directions run at once.
+ */
+#define TC956X_RX_QUEUES		1
+#define TC956X_TX_QUEUES		1
 
 /* Fields and values for the EMACTL registers */
 #define EMAC_SP_SEL_MASK		GENMASK(3, 0)
@@ -55,9 +76,19 @@
 
 /* MSIGEN Registers */
 #define MSI_OUT_EN_OFFSET		0x0000
+#define MSI_MASK_SET_OFFSET		0x0008
 #define MSI_MASK_CLR_OFFSET		0x000c
-#define MSI_MASK_VALUE			BIT(0)
 #define MSI_INT_STS_OFFSET		0x0010
+/*
+ * MSI_VECT_SET0..7: one byte lane per interrupt source, four sources per
+ * register, the low five bits of each lane selecting the MSI vector.  Sources
+ * are indexed by the same numbers as enum msigen_hwirq below.  Note that
+ * MSI_OUT_EN and MSI_INT_STS are indexed by *source*, while MSI_MASK_SET and
+ * MSI_MASK_CLR are indexed by *vector*.
+ */
+#define MSI_VECT_SET_OFFSET(_src)	(0x0020 + ((_src) / 4) * 4)
+#define MSI_VECT_SET_SHIFT(_src)	(((_src) % 4) * 8)
+#define MSI_VECT_SET_MASK		GENMASK(4, 0)
 
 enum msigen_hwirq {
 	HWIRQ_LPI		= 0,
@@ -72,6 +103,19 @@ enum msigen_hwirq {
 };
 
 #define HWIRQ_COUNT			25
+
+/*
+ * MSIGEN interrupt sources all reset to MSI vector 0, so a single chained
+ * handler ends up demultiplexing every TX and RX completion on one CPU, which
+ * saturates that CPU long before the link is saturated.  Give every DMA channel
+ * its own vector so each one lands on its own CPU.  Vector 0 is shared with the
+ * endpoint's own PCIe interrupts, so start at 1.
+ */
+#define TC956X_DMA_CHANS		8
+#define MSI_VEC_MISC			1
+#define MSI_VEC_TX(_ch)			(2 + (_ch))
+#define MSI_VEC_RX(_ch)			(2 + TC956X_DMA_CHANS + (_ch))
+#define MSI_VEC_COUNT			(2 + 2 * TC956X_DMA_CHANS)
 
 /* Offset to the XPCS memory block, relative to the EMAC address range */
 #define DWMAC_XPCS_OFFSET		0x3a00
@@ -126,6 +170,14 @@ struct tc956x_data {
 	struct tc956x_dwmac_data *auxbus_data;
 	struct plat_stmmacenet_data *plat;
 
+	/* One entry per MSI vector we actually route sources to */
+	struct tc956x_msi_vec {
+		struct tc956x_data *td;
+		u32 src_mask;		/* MSIGEN sources on this vector */
+		u8 vec;			/* MSI vector number */
+	} msi_vec[MSI_VEC_COUNT];
+	unsigned int msi_vec_used;
+
 	/* These three fields are used by the plat_stmmacenet_data structure */
 	struct stmmac_dma_cfg dma_cfg;
 	struct stmmac_mdio_bus_data mdio_bus_data;
@@ -175,33 +227,111 @@ static const struct regmap_config xpcs_regmap_config = {
 
 static void tc956x_msigen_irq_handler(struct irq_desc *desc)
 {
-	struct irq_domain *irq_domain = irq_desc_get_handler_data(desc);
+	struct tc956x_msi_vec *mv = irq_desc_get_handler_data(desc);
 	struct irq_chip *chip = irq_desc_get_chip(desc);
 	struct irq_chip_generic *gc;
 	unsigned long status;
 	unsigned int hwirq;
 
-	gc = irq_get_domain_generic_chip(irq_domain, 0);
+	gc = irq_get_domain_generic_chip(mv->td->irq_domain, 0);
 
 	chained_irq_enter(chip, desc);
 
-	status = irq_reg_readl(gc, MSI_INT_STS_OFFSET);
+	/*
+	 * MSI_INT_STS is indexed by source and is shared by every vector, so
+	 * only act on the sources routed to this one.  Otherwise two vectors
+	 * running on two CPUs would both try to handle the same source.
+	 */
+	status = irq_reg_readl(gc, MSI_INT_STS_OFFSET) & mv->src_mask;
 	for_each_set_bit(hwirq, &status, HWIRQ_COUNT)
-		generic_handle_domain_irq(irq_domain, hwirq);
+		generic_handle_domain_irq(mv->td->irq_domain, hwirq);
 
 	/*
 	 * Clear the MSI flag. Most interrupts within TC956X are level-high
 	 * type. If any interrupts are still asserted then clearing this flag
-	 * will cause the (edge-triggered) MSI to be regenerated.
+	 * will cause the (edge-triggered) MSI to be regenerated.  This register
+	 * is indexed by vector, not by source.
 	 */
-	irq_reg_writel(gc, MSI_MASK_VALUE, MSI_MASK_CLR_OFFSET);
+	irq_reg_writel(gc, BIT(mv->vec), MSI_MASK_CLR_OFFSET);
 
 	chained_irq_exit(chip, desc);
+}
+
+/*
+ * Route each MSIGEN source to the MSI vector we picked for it.  Sources all
+ * reset to vector 0, and MSI_OUT_EN must be zero while the mapping changes.
+ */
+static void tc956x_msigen_route(struct irq_chip_generic *gc,
+				const u8 *src_vec, unsigned int nsrc)
+{
+	unsigned int src, reg;
+	u32 val;
+
+	irq_reg_writel(gc, 0, MSI_OUT_EN_OFFSET);
+
+	for (reg = 0; reg < DIV_ROUND_UP(nsrc, 4); reg++) {
+		val = 0;
+		for (src = reg * 4; src < min(nsrc, (reg + 1) * 4); src++)
+			val |= (src_vec[src] & MSI_VECT_SET_MASK) <<
+				MSI_VECT_SET_SHIFT(src);
+		irq_reg_writel(gc, val, MSI_VECT_SET_OFFSET(reg * 4));
+	}
+}
+
+/*
+ * Decide which MSI vector each MSIGEN source uses, and record the reverse
+ * mapping so each vector's handler knows which sources to service.  Everything
+ * resets to vector 0; give each DMA channel its own so that TX and RX never
+ * share a CPU.  Falls back to one shared vector if the host granted too few.
+ */
+static void tc956x_msigen_plan(struct tc956x_data *td, u8 *src_vec)
+{
+	unsigned int src, ch;
+
+	if (td->auxbus_data->msigen_nvec < MSI_VEC_COUNT) {
+		for (src = 0; src < HWIRQ_COUNT; src++)
+			src_vec[src] = 0;
+		td->msi_vec[0] = (struct tc956x_msi_vec){
+			.td = td, .vec = 0,
+			.src_mask = GENMASK(HWIRQ_COUNT - 1, 0),
+		};
+		td->msi_vec_used = 1;
+		return;
+	}
+
+	for (src = 0; src < HWIRQ_COUNT; src++)
+		src_vec[src] = MSI_VEC_MISC;
+	for (ch = 0; ch < TC956X_DMA_CHANS; ch++) {
+		src_vec[HWIRQ_TX0 + ch] = MSI_VEC_TX(ch);
+		src_vec[HWIRQ_RX0 + ch] = MSI_VEC_RX(ch);
+	}
+
+	td->msi_vec[0] = (struct tc956x_msi_vec){
+		.td = td, .vec = MSI_VEC_MISC,
+		.src_mask = GENMASK(HWIRQ_EVENT, HWIRQ_LPI) |
+			    GENMASK(HWIRQ_COUNT - 1, HWIRQ_XPCS),
+	};
+	td->msi_vec_used = 1;
+
+	/* Interleaved so that TX and RX of the same channel index differ */
+	for (ch = 0; ch < TC956X_DMA_CHANS; ch++) {
+		td->msi_vec[td->msi_vec_used++] = (struct tc956x_msi_vec){
+			.td = td, .vec = MSI_VEC_TX(ch),
+			.src_mask = BIT(HWIRQ_TX0 + ch),
+		};
+		td->msi_vec[td->msi_vec_used++] = (struct tc956x_msi_vec){
+			.td = td, .vec = MSI_VEC_RX(ch),
+			.src_mask = BIT(HWIRQ_RX0 + ch),
+		};
+	}
 }
 
 static int tc956x_msigen_irq_chip_init(struct irq_chip_generic *gc)
 {
 	struct tc956x_data *td = gc->domain->host_data;
+	u8 src_vec[HWIRQ_COUNT];
+	u32 vec_used = 0;
+	unsigned int i;
 
 	gc->reg_base = td->auxbus_data->msigen;
 	gc->chip_types[0].regs.mask = MSI_OUT_EN_OFFSET;
@@ -211,6 +341,26 @@ static int tc956x_msigen_irq_chip_init(struct irq_chip_generic *gc)
 	/* Disable all interrupts */
 	irq_reg_writel(gc, 0, MSI_OUT_EN_OFFSET);
 
+	/*
+	 * Program the source-to-vector mapping here rather than in the domain
+	 * init hook, because this is the first point at which gc->reg_base is
+	 * valid.  MSI_OUT_EN must be zero while the mapping changes, which the
+	 * write above already took care of; the sources get enabled again as
+	 * stmmac requests and unmasks them.
+	 */
+	tc956x_msigen_plan(td, src_vec);
+	tc956x_msigen_route(gc, src_vec, HWIRQ_COUNT);
+
+	for (i = 0; i < td->msi_vec_used; i++)
+		vec_used |= BIT(td->msi_vec[i].vec);
+
+	/*
+	 * Mask the vectors we do not use, as the TRM requires.  Leave vector 0
+	 * alone even when unused: the endpoint's own PCIe interrupts use it.
+	 */
+	irq_reg_writel(gc, ~vec_used & ~BIT(0), MSI_MASK_SET_OFFSET);
+	irq_reg_writel(gc, vec_used, MSI_MASK_CLR_OFFSET);
+
 	return 0;
 }
 
@@ -219,26 +369,45 @@ static void tc956x_msigen_irq_chip_exit(struct irq_chip_generic *gc)
 	irq_reg_writel(gc, 0, MSI_OUT_EN_OFFSET);
 }
 
+
 static int tc956x_msigen_irq_domain_init(struct irq_domain *irq_domain)
 {
 	struct tc956x_data *td = irq_domain->host_data;
-	unsigned int cpu, last_cpu = 0, prev_cpu = 0;
+	unsigned int i, cpu;
+	int last = -1;
 
-	for_each_cpu(cpu, cpu_online_mask) {
-		prev_cpu = last_cpu;
-		last_cpu = cpu;
+	if (td->msi_vec_used == 1) {
+		for_each_cpu(cpu, cpu_online_mask)
+			last = cpu;
+		irq_set_affinity_and_hint(td->auxbus_data->msigen_irq,
+					  cpumask_of(last > 0 ? last - 1 : 0));
+		irq_set_chained_handler_and_data(td->auxbus_data->msigen_irq,
+						 tc956x_msigen_irq_handler,
+						 &td->msi_vec[0]);
+		dev_info(td->dev, "%u MSI vector(s), sharing one interrupt\n",
+			 td->auxbus_data->msigen_nvec);
+		return 0;
 	}
 
-	if (cpumask_weight(cpu_online_mask) > 1)
-		cpu = prev_cpu;
-	else
-		cpu = last_cpu;
+	cpu = cpumask_first(cpu_online_mask);
+	for (i = 0; i < td->msi_vec_used; i++) {
+		unsigned int irq = td->auxbus_data->msigen_irq +
+				   td->msi_vec[i].vec;
 
-	irq_set_affinity_and_hint(td->auxbus_data->msigen_irq, cpumask_of(cpu));
+		irq_set_chained_handler_and_data(irq,
+						 tc956x_msigen_irq_handler,
+						 &td->msi_vec[i]);
 
-	irq_set_chained_handler_and_data(td->auxbus_data->msigen_irq,
-					 tc956x_msigen_irq_handler,
-					 irq_domain);
+		/* Leave the shared low-rate vector wherever it lands */
+		if (td->msi_vec[i].vec == MSI_VEC_MISC)
+			continue;
+
+		irq_set_affinity_and_hint(irq, cpumask_of(cpu));
+		cpu = cpumask_next_wrap(cpu, cpu_online_mask);
+	}
+
+	dev_info(td->dev, "%u MSI vectors, one per DMA channel\n",
+		 td->auxbus_data->msigen_nvec);
 
 	return 0;
 }
@@ -246,10 +415,18 @@ static int tc956x_msigen_irq_domain_init(struct irq_domain *irq_domain)
 static void tc956x_msigen_irq_domain_exit(struct irq_domain *irq_domain)
 {
 	struct tc956x_data *td = irq_domain->host_data;
+	unsigned int i;
 
-	irq_set_chained_handler_and_data(td->auxbus_data->msigen_irq,
-					 NULL, NULL);
+	for (i = 0; i < td->msi_vec_used; i++) {
+		unsigned int irq = td->auxbus_data->msigen_irq;
+
+		if (td->msi_vec_used > 1)
+			irq += td->msi_vec[i].vec;
+
+		irq_set_chained_handler_and_data(irq, NULL, NULL);
+	}
 }
+
 
 /* We have one IRQ chip instance with 25 IRQs in its domain */
 static struct irq_domain *
@@ -435,9 +612,16 @@ static void tc956x_mac_disable(struct tc956x_data *td)
 	if (plat->phy_interface == PHY_INTERFACE_MODE_USXGMII) {
 		tc956x_clock_disable(chip, id, MAC_CLOCK_125M);
 		tc956x_clock_disable(chip, id, MAC_CLOCK_312_5M);
-		tc956x_common_clock_disable(chip, COMMON_CLOCK_REFCLK);
-		tc956x_common_clock_disable(chip, COMMON_CLOCK_SGMII);
-		tc956x_common_clock_disable(chip, COMMON_CLOCK_PLL);
+		/*
+		 * Deliberately leave COMMON_CLOCK_PLL/SGMII/REFCLK running.
+		 * They are chip-wide, not per-MAC, and the other MAC's external
+		 * PHY needs the reference clock output to keep working: turning
+		 * them off here makes that PHY lose its refclk, after which it
+		 * fails its IPC handshake ("failed to send ipc msg", -EINVAL),
+		 * falls back to a generic Clause 45 PHY and never links again
+		 * until the board is power cycled.  The parent chip driver
+		 * returns them to their default off state when it re-initialises.
+		 */
 	}
 }
 
@@ -579,12 +763,13 @@ static struct phylink_pcs *tc956x_select_pcs(struct stmmac_priv *priv,
 	return priv->hw->phylink_pcs;
 }
 
-static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
+static void tc956x_fix_mac_speed(void *bsp_priv, phy_interface_t interface,
+				 int speed, unsigned int mode)
 {
 	struct tc956x_data *td = bsp_priv;
 
-	tc956x_mac_configure(td, td->plat->phy_interface, speed);
-	if (td->plat->phy_interface == PHY_INTERFACE_MODE_USXGMII)
+	tc956x_mac_configure(td, interface, speed);
+	if (interface == PHY_INTERFACE_MODE_USXGMII)
 		return;
 
 	tc956x_pma_init(td);
@@ -714,8 +899,7 @@ static int tc956x_plat_dat_init(struct tc956x_data *td)
 	 * represents "divide by 62" and gets the best rate under 2.5 MHz.
 	 */
 	plat->clk_csr = 0;	/* MDC clock = clk_csr_i / 62 */
-	plat->mdio_bus_data->default_an_inband =
-		phy_interface != PHY_INTERFACE_MODE_USXGMII;
+	plat->default_an_inband = phy_interface != PHY_INTERFACE_MODE_USXGMII;
 	plat->force_sf_dma_mode = true;
 	plat->max_speed = speed;
 	plat->unicast_filter_entries = 32;
@@ -725,25 +909,34 @@ static int tc956x_plat_dat_init(struct tc956x_data *td)
 	 * TC956X partitions FIFO per function; exposing multiple stmmac queues makes
 	 * the core split this budget and leaves the active queue too small for 10G.
 	 */
-	plat->rx_queues_to_use = 1;
-	plat->tx_queues_to_use = 1;
+	plat->rx_queues_to_use = TC956X_RX_QUEUES;
+	plat->tx_queues_to_use = TC956X_TX_QUEUES;
 
 	/*
-	 * Oversized FIFOs result in reduced performance in bandwidth tests.
-	 * Limit them to 8KiB per queue, or the total available.
+	 * Spread received flows over the RX queues.  Without this every packet
+	 * lands on queue 0, so a multi-queue configuration gains nothing.
 	 */
-	plat->tx_fifo_size =
-		min(TC956X_TX_FIFO_KB, 8 * plat->tx_queues_to_use) * SZ_1K;
-	plat->rx_fifo_size =
-		min(TC956X_RX_FIFO_KB, 8 * plat->rx_queues_to_use) * SZ_1K;
+	plat->rss_en = TC956X_RX_QUEUES > 1;
+
+	/*
+	 * Give the single active queue the whole FIFO partition.  The RX FIFO
+	 * has to absorb everything that arrives between two RX interrupts; on a
+	 * 10G link an 8KiB queue overflows long before the RX watchdog fires,
+	 * so the MAC drops most of the traffic (mmc_rx_fifo_overflow) while the
+	 * descriptor ring still has free buffers (rx_buf_unav_irq stays 0).
+	 */
+	plat->tx_fifo_size = TC956X_TX_FIFO_KB * SZ_1K;
+	plat->rx_fifo_size = TC956X_RX_FIFO_KB * SZ_1K;
 	plat->host_dma_width = 36;
 
 	plat->rx_sched_algorithm = MTL_RX_ALGORITHM_SP;
 	plat->tx_sched_algorithm = MTL_TX_ALGORITHM_WRR;
 
 	/* Default RX chan is set to queue index (0..rx_queues_to_use-1) */
-	for (i = 0; i < plat->rx_queues_to_use; i++)
+	for (i = 0; i < plat->rx_queues_to_use; i++) {
 		plat->rx_queues_cfg[i].mode_to_use = MTL_QUEUE_DCB;
+		plat->rx_queues_cfg[i].chan = i;
+	}
 
 	for (i = 0; i < plat->tx_queues_to_use; i++) {
 		plat->tx_queues_cfg[i].weight = 12;
@@ -763,6 +956,13 @@ static int tc956x_plat_dat_init(struct tc956x_data *td)
 
 	plat->bsp_priv = td;
 	plat->clk_ptp_rate = TC956X_PTP_CLOCK_RATE;
+	/*
+	 * stmmac converts between the RX watchdog (RIWT) register and
+	 * microseconds using stmmac_clk, which this glue does not provide.
+	 * Without a reference rate the conversion collapses to 0, so ethtool
+	 * reports rx-usecs as 0 and rejects every -C setting with -EINVAL.
+	 */
+	plat->clk_ref_rate = TC956X_MAC_CLOCK_RATE;
 
 	/* AXI Configuration */
 	axi = &td->axi;
@@ -774,7 +974,14 @@ static int tc956x_plat_dat_init(struct tc956x_data *td)
 	plat->axi = axi;
 
 	plat->mac_port_sel_speed = speed;
-	plat->flags = STMMAC_FLAG_MULTI_MSI_EN | STMMAC_FLAG_TSO_EN;
+	/*
+	 * Leave hardware TSO off.  The TC956X segmentation engine tops out at
+	 * ~6.2 Gbit/s no matter how the DMA is tuned (PBL, TX FIFO size and
+	 * MaxReadReq make no difference), and it inflates the round-trip time
+	 * to ~1.5 ms as packets queue up behind it.  Letting the stack segment
+	 * instead reaches line rate at the cost of some CPU.
+	 */
+	plat->flags = STMMAC_FLAG_MULTI_MSI_EN;
 
 	td->plat = plat;
 
