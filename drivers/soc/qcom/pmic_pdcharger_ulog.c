@@ -80,6 +80,13 @@ static void pmic_pdcharger_ulog_work(struct work_struct *work)
 		dev_err(&pg->rpdev->dev, "Error requesting ulog, rc=%d\n", rc);
 		return;
 	}
+
+	/*
+	 * Keep polling on our own schedule. Firmware that only pushes
+	 * CHG_ULOG_IND never answers the request, and rearming solely from the
+	 * response handler would stop the log after the first attempt.
+	 */
+	schedule_delayed_work(&pg->ulog_work, msecs_to_jiffies(LOG_DEFAULT_TIME_MS));
 }
 
 static void pmic_pdcharger_ulog_handle_message(struct pmic_pdcharger_ulog *pg,
