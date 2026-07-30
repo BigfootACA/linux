@@ -181,6 +181,14 @@ int adreno_zap_shader_load(struct msm_gpu *gpu, u32 pasid)
 		return -EPROBE_DEFER;
 	}
 
+	/*
+	 * Some GPUs have no zap shader of their own and are expected to leave
+	 * secure mode through SECVID_TRUST_CNTL instead. Say so rather than
+	 * going on to ask the firmware loader for a nameless file.
+	 */
+	if (!adreno_gpu->info->zapfw)
+		return -ENODEV;
+
 	return zap_shader_load_mdt(gpu, adreno_gpu->info->zapfw, pasid);
 }
 
