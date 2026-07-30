@@ -6438,6 +6438,7 @@ static int stmmac_setup_tc(struct net_device *ndev, enum tc_setup_type type,
 static u16 stmmac_select_queue(struct net_device *dev, struct sk_buff *skb,
 			       struct net_device *sb_dev)
 {
+	struct stmmac_priv *priv = netdev_priv(dev);
 	int gso = skb_shinfo(skb)->gso_type;
 
 	if (gso & (SKB_GSO_TCPV4 | SKB_GSO_TCPV6 | SKB_GSO_UDP_L4)) {
@@ -6446,8 +6447,15 @@ static u16 stmmac_select_queue(struct net_device *dev, struct sk_buff *skb,
 		 * capable Queues. Let's use always the Queue 0
 		 * because if TSO/USO is supported then at least this
 		 * one will be capable.
+		 *
+		 * This only matters when the MAC does the segmentation.  If
+		 * hardware segmentation is disabled the stack splits the skb
+		 * after this point anyway, so confining it to one queue just
+		 * serialises every TCP flow onto a single ring for no reason.
 		 */
-		return 0;
+		if (priv->dma_cap.tsoen &&
+		    priv->plat->flags & STMMAC_FLAG_TSO_EN)
+			return 0;
 	}
 
 	return netdev_pick_tx(dev, skb, NULL) % dev->real_num_tx_queues;
