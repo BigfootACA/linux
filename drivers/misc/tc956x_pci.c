@@ -73,6 +73,21 @@
 #define NCID_OFFSET			0x0000
 #define NCID_REV_ID_MASK		GENMASK(7, 0)
 
+/* Mode (strap pin) status, read-only */
+#define NMODESTS_OFFSET			0x0004
+#define NMODESTS_MODE2			BIT(10)	/* 0 = USP x4, 1 = USP x2 */
+
+/*
+ * Bus frequency control.  This selects the rate of the 128-bit AXI matrix that
+ * both EMACs and the PCIe endpoint hang off, so it caps the *total* DMA
+ * bandwidth of the chip: 125 MHz x 128 bit = 16 Gbit/s, 250 MHz = 32 Gbit/s.
+ * The TRM also requires >160 MHz for 10 Gbit/s on the AXI read interface, and
+ * >200 MHz when more than one TX queue is active.  Reset value is not
+ * documented, so read it back and log what we ended up with.
+ */
+#define NBUSCTRL_OFFSET			0x1014
+#define NBUSCTRL_FREQ			BIT(16)	/* 0 = 250 MHz, 1 = 125 MHz */
+
 /* Reset and clock register offsets.  MAC resets and clocks are controlled
  * by bits in register 0 for MAC0, register 1 for MAC1.  Other non-MAC
  * resets and clocks (whose IDs are defined here) are controlled by bits
@@ -145,6 +160,8 @@ enum clock_id {
  */
 #define EMAC_CTL_OFFSET(_mac_id)	((_mac_id) ? 0x1074 : 0x1070)
 #define MSIGEN_OFFSET(_mac_id)		((_mac_id) ? 0xf100 : 0xf000)
+/* MSIGEN can drive 32 MSI vectors per function */
+#define TC956X_MSI_VECTORS		32
 #define DWMAC_OFFSET(_mac_id)		((_mac_id) ? 0x48000 : 0x40000)
 
 /*
@@ -386,7 +403,8 @@ static int chip_gpio_adev_add(struct tc956x_chip *chip)
 /* The two embedded XGMAC controllers have an auxiliary device driver */
 static int function_xgmac_adev_add(struct pci_dev *pdev,
 				   struct tc956x_chip *chip,
-				   unsigned int msigen_irq)
+				   unsigned int msigen_irq,
+				   unsigned int msigen_nvec)
 {
 	u8 mac_id = PCI_FUNC(pdev->devfn);
 	struct device *dev = &pdev->dev;
@@ -413,6 +431,7 @@ static int function_xgmac_adev_add(struct pci_dev *pdev,
 	data->chip = chip;
 	data->msigen = sfr + MSIGEN_OFFSET(mac_id);
 	data->msigen_irq = msigen_irq;
+	data->msigen_nvec = msigen_nvec;
 	data->emac = sfr + DWMAC_OFFSET(mac_id);
 	data->emac_ctl = sfr + EMAC_CTL_OFFSET(mac_id);
 	data->sfr = sfr;
@@ -426,6 +445,20 @@ static int function_xgmac_adev_add(struct pci_dev *pdev,
 
 	return 0;
 }
+
+/* Log the AXI bus rate and the upstream-port lane strap; both are read-only */
+static void chip_bus_freq_setup(struct tc956x_chip *chip)
+{
+	void __iomem *base = chip->sfr[0];
+	u32 val;
+
+	val = readl(base + NBUSCTRL_OFFSET);
+	dev_info(chip->dev, "NBUSCTRL=0x%08x -> AXI bus %s MHz; NMODESTS=0x%08x -> USP x%d\n",
+		 val, (val & NBUSCTRL_FREQ) ? "125" : "250",
+		 readl(base + NMODESTS_OFFSET),
+		 (readl(base + NMODESTS_OFFSET) & NMODESTS_MODE2) ? 2 : 4);
+}
+
 
 static int chip_reset_clock_init(struct tc956x_chip *chip)
 {
@@ -656,6 +689,8 @@ static int chip_init(struct tc956x_chip *chip, struct pci_dev *pdev)
 	if (ret)
 		return ret;
 
+	chip_bus_freq_setup(chip);
+
 	chip_init_state(chip);
 
 	ret = chip_gpio_adev_add(chip);
@@ -697,6 +732,7 @@ tc956x_function_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	struct device *dev = &pdev->dev;
 	struct tc956x_chip *chip;
 	unsigned int msigen_irq;
+	unsigned int msigen_nvec;
 	int ret;
 
 	/* Despite being a PCI device, we require devicetree */
@@ -709,27 +745,52 @@ tc956x_function_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
 	pci_set_master(pdev);
 
+	/*
+	 * Keep this link out of ASPM L1.  On sc8280xp two PCIe controllers
+	 * share the DDRSS PCIe TBU and aggregate NOC clocks, and a TC956X that
+	 * drops CLKREQ# to enter L1.2 gates them for its neighbour as well.
+	 * The stall that costs is far longer than the MTL RX FIFO can absorb,
+	 * so an *idle* TC956X reduces the *other* one to ~0.6 Gbit/s of a 10G
+	 * link, with every lost frame showing up as mmc_rx_fifo_overflow.
+	 */
+	ret = pci_disable_link_state(pdev, PCIE_LINK_STATE_L1 |
+					   PCIE_LINK_STATE_L1_1 |
+					   PCIE_LINK_STATE_L1_2 |
+					   PCIE_LINK_STATE_L1_1_PCIPM |
+					   PCIE_LINK_STATE_L1_2_PCIPM);
+	if (ret)
+		dev_warn(dev, "failed to disable ASPM L1: %d\n", ret);
+
 	/* Function 1 gets -EPROBE_DEFER until function 0 sets platform data */
 	chip = chip_get(pdev);
 	if (IS_ERR(chip))
 		return dev_err_probe(dev, PTR_ERR(chip), "failed to get chip\n");
 
-	/* We called pcim_enable_device() so this will be freed automatically */
-	ret = pcim_alloc_irq_vectors(pdev, 1, 1, PCI_IRQ_MSI);
+	/*
+	 * MSIGEN can steer each of its interrupt sources to any of 32 MSI
+	 * vectors, but only if the host grants more than one.  Ask for the full
+	 * 32: the vector number replaces the low 5 bits of the MSI data, so a
+	 * smaller (less strictly aligned) allocation risks having those bits
+	 * overwritten.  Fall back to a single vector if we cannot get them.
+	 */
+	ret = pcim_alloc_irq_vectors(pdev, 1, TC956X_MSI_VECTORS, PCI_IRQ_MSI);
 	if (ret < 1)
 		return dev_err_probe(dev, ret ? : -EIO,
 				     "failed to allocate IRQ vectors\n");
+	msigen_nvec = ret;
 
 	ret = pci_irq_vector(pdev, 0);
 	if (ret < 1)
 		return dev_err_probe(dev, ret ? : -EIO, "failed to get IRQ\n");
 	msigen_irq = ret;
 
+	dev_info(dev, "%u MSI vector(s), base IRQ %u\n", msigen_nvec, msigen_irq);
+
 	ret = chip_init(chip, pdev);
 	if (ret)
 		return dev_err_probe(dev, ret, "failed to initialize chip\n");
 
-	ret = function_xgmac_adev_add(pdev, chip, msigen_irq);
+	ret = function_xgmac_adev_add(pdev, chip, msigen_irq, msigen_nvec);
 	if (ret)
 		return dev_err_probe(dev, ret, "failed to add xgmap device\n");
 
