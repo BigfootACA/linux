@@ -28,7 +28,15 @@ static struct gdsc gx_clkctl_gx_gdsc = {
 		.power_on = gdsc_gx_do_nothing_enable,
 	},
 	.pwrsts = PWRSTS_OFF_ON,
-	.flags = POLL_CFG_GDSCR | RETAIN_FF_ENABLE,
+	/*
+	 * Poll the power-on bit rather than CFG_GDSCR: this block sits inside
+	 * the domain it controls, so once GX collapses its registers read back
+	 * as zero and the power-down-complete bit can never be observed. A zero
+	 * read is an unambiguous "off" through the power-on bit, and the
+	 * power-up direction is never polled because the GMU, not this driver,
+	 * brings GX up.
+	 */
+	.flags = RETAIN_FF_ENABLE,
 };
 
 static struct gdsc *gx_clkctl_gdscs[] = {
