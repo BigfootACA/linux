@@ -1356,8 +1356,14 @@ static void qcom_battmgr_sc8280xp_callback(struct qcom_battmgr *battmgr,
 		battmgr->error = 0;
 		break;
 	default:
-		dev_warn_ratelimited(battmgr->dev, "unknown message %#x\n", opcode);
-		break;
+		/*
+		 * Firmware is free to push vendor specific notifications on
+		 * this channel. They are not responses to any of our requests,
+		 * so leave a pending ack alone instead of waking the requester
+		 * up with someone else's payload.
+		 */
+		dev_dbg(battmgr->dev, "ignoring message %#x\n", opcode);
+		return;
 	}
 
 	complete(&battmgr->ack);
@@ -1560,8 +1566,9 @@ static void qcom_battmgr_sm8350_callback(struct qcom_battmgr *battmgr,
 		battmgr->error = 0;
 		break;
 	default:
-		dev_warn_ratelimited(battmgr->dev, "unknown message %#x\n", opcode);
-		break;
+		/* See the comment in qcom_battmgr_sc8280xp_callback(). */
+		dev_dbg(battmgr->dev, "ignoring message %#x\n", opcode);
+		return;
 	}
 
 out_complete:
