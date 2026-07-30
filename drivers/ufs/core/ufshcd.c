@@ -11509,9 +11509,20 @@ static int __init ufshcd_core_init(void)
 
 	ufs_debugfs_init();
 
+	ret = ufs_rpmb_bus_register();
+	if (ret)
+		goto out_debugfs;
+
 	ret = scsi_register_driver(&ufs_dev_wlun_template);
 	if (ret)
-		ufs_debugfs_exit();
+		goto out_bus;
+
+	return 0;
+
+out_bus:
+	ufs_rpmb_bus_unregister();
+out_debugfs:
+	ufs_debugfs_exit();
 	return ret;
 }
 
@@ -11519,6 +11530,7 @@ static void __exit ufshcd_core_exit(void)
 {
 	ufs_debugfs_exit();
 	scsi_unregister_driver(&ufs_dev_wlun_template);
+	ufs_rpmb_bus_unregister();
 }
 
 module_init(ufshcd_core_init);
