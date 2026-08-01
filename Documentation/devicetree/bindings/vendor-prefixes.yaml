@@ -1132,6 +1132,8 @@ patternProperties:
     description: Macronix International Co., Ltd.
   "^myir,.*":
     description: MYIR Tech Limited
+  "^nanosic,.*":
+    description: Beijing Nanosic Technology Co., Ltd.
   "^national,.*":
     description: National Semiconductor
   "^neardi,.*":

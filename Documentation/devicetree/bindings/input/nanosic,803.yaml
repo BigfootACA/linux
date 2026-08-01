@@ -1,0 +1,88 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/input/nanosic,803.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Nanosic 803 keyboard MCU
+
+maintainers:
+  - Junhao Xie <bigfoot@radxa.com>
+
+description:
+  The Nanosic 803 sits behind the magnetic pogo connector of tablets such as
+  the Xiaomi Pad 8 Pro and multiplexes a detachable keyboard, its Precision
+  Touchpad, a consumer control page and vendor status reports onto a single
+  I2C slave. The MCU has no flash-resident application, so the host has to
+  upload a RAM image over I2C after every reset before any report is produced.
+
+properties:
+  compatible:
+    const: nanosic,803
+
+  reg:
+    maxItems: 1
+
+  interrupts:
+    maxItems: 1
+    description: Asserted by the MCU when a report is pending.
+
+  vdd-supply:
+    description: Main 3.3V supply, also feeds the pogo connector.
+
+  dvdd-supply:
+    description: 1.8V supply for the I2C and GPIO interface.
+
+  reset-gpios:
+    maxItems: 1
+    description: Reset input of the MCU.
+
+  sleep-gpios:
+    maxItems: 1
+    description:
+      Driven low to ask the MCU to enter its low power state, high to run.
+
+  wakeup-gpios:
+    maxItems: 1
+    description:
+      Asserted by the MCU before it sends a report. It is used as a wakeup
+      interrupt so that typing on the keyboard resumes the system.
+
+  wakeup-source: true
+
+required:
+  - compatible
+  - reg
+  - interrupts
+  - vdd-supply
+  - reset-gpios
+  - sleep-gpios
+
+additionalProperties: false
+
+examples:
+  - |
+    #include <dt-bindings/gpio/gpio.h>
+    #include <dt-bindings/interrupt-controller/irq.h>
+
+    i2c {
+        #address-cells = <1>;
+        #size-cells = <0>;
+
+        keyboard@4c {
+            compatible = "nanosic,803";
+            reg = <0x4c>;
+
+            interrupts-extended = <&tlmm 97 IRQ_TYPE_EDGE_RISING>;
+
+            vdd-supply = <&vreg_l14b_3p3>;
+            dvdd-supply = <&vreg_l11b_1p8>;
+
+            reset-gpios = <&tlmm 188 GPIO_ACTIVE_LOW>;
+            sleep-gpios = <&tlmm 3 GPIO_ACTIVE_HIGH>;
+            wakeup-gpios = <&tlmm 95 GPIO_ACTIVE_HIGH>;
+
+            pinctrl-0 = <&kbd_default>;
+            pinctrl-names = "default";
+        };
+    };
