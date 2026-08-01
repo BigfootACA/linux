@@ -18328,6 +18328,13 @@ F:	rust/kernel/pid_namespace.rs
 F:	kernel/pid_namespace.c
 F:	tools/testing/selftests/pid_namespace/
 
+NANOSIC 803 KEYBOARD MCU DRIVER
+M:	Junhao Xie <bigfoot@radxa.com>
+L:	linux-input@vger.kernel.org
+S:	Maintained
+F:	Documentation/devicetree/bindings/input/nanosic,803.yaml
+F:	drivers/hid/hid-nanosic.c
+
 NATIONAL INSTRUMENTS SERIAL DRIVER
 M:	Chaitanya Vadrevu <chaitanya.vadrevu@emerson.com>
 L:	linux-serial@vger.kernel.org

@@ -828,6 +828,22 @@ config HID_MULTITOUCH
 	  To compile this driver as a module, choose M here: the
 	  module will be called hid-multitouch.
 
+config HID_NANOSIC
+	tristate "Nanosic 803 keyboard MCU"
+	depends on I2C
+	depends on OF
+	select HID_MULTITOUCH
+	help
+	  Support for the Nanosic 803 MCU found behind the magnetic pogo
+	  connector of tablets such as the Xiaomi Pad 8 Pro.  It carries the
+	  detachable keyboard and its Precision Touchpad over I2C.
+
+	  The MCU has no flash-resident application, so this driver needs the
+	  nanosic/MCU_Upgrade.bin firmware file to bring the device up.
+
+	  To compile this driver as a module, choose M here: the module will
+	  be called hid-nanosic.
+
 config HID_NINTENDO
 	tristate "Nintendo Joy-Con, NSO, and Pro Controller support"
 	depends on NEW_LEDS
