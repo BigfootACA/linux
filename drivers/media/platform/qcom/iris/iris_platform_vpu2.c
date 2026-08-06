@@ -126,7 +126,7 @@ const struct iris_platform_data sc8280xp_data = {
 	.tz_cp_config_data_size = ARRAY_SIZE(tz_cp_config_vpu2),
 	.num_vpp_pipe = 4,
 	.wd_intr_mask = WRAPPER_INTR_STATUS_A2HWD_BMSK,
-	.icc_ib_multiplier = 1,
+	.icc_ib_multiplier = 1,	.prepend_sps_pps_to_idr = true,
 	.max_session_count = 16,
 	.max_core_mbpf = NUM_MBS_8K,
 	.max_core_mbps = ((7680 * 4320) / 256) * 60,

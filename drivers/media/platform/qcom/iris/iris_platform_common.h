@@ -347,6 +347,7 @@ struct iris_platform_data {
 	const struct tz_cp_config *tz_cp_config_data;
 	u32 tz_cp_config_data_size;
 	u32 num_vpp_pipe;
+	bool prepend_sps_pps_to_idr;
 	bool no_aon;
 	bool no_rpmh;
 	u32 wd_intr_mask;
