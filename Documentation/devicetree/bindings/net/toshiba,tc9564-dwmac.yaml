@@ -65,6 +65,14 @@ properties:
       Set this only on platforms where TC956x L1 entry gates shared clocks and
       stalls a neighbouring device.
 
+  sgmii-usxgmii-switch-quirk:
+    type: boolean
+    description:
+      Enable runtime switching between SGMII at speeds up to 1 Gbit/s and
+      USXGMII at speeds of 2.5 Gbit/s and above. The attached AS22xxx PHY node
+      must also contain this property. Without it, the interface remains in
+      the mode selected by phy-mode.
+
   gpio:
     type: object
     description: Embedded GPIO controller
