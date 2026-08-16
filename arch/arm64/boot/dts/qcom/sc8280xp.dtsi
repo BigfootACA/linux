@@ -2652,8 +2652,9 @@
 					<&gem_noc MASTER_APPSS_PROC 0 &config_noc SLAVE_PCIE_4 0>;
 			interconnect-names = "pcie-mem", "cpu-pcie";
 
-			resets = <&gcc GCC_PCIE_4_BCR>;
-			reset-names = "pci";
+			resets = <&gcc GCC_PCIE_4_BCR>,
+				 <&gcc GCC_PCIE_4_LINK_DOWN_BCR>;
+			reset-names = "pci", "link_down";
 
 			power-domains = <&gcc PCIE_4_GDSC>;
 			required-opps = <&rpmhpd_opp_nom>;
@@ -2691,8 +2692,9 @@
 
 			power-domains = <&gcc PCIE_4_GDSC>;
 
-			resets = <&gcc GCC_PCIE_4_PHY_BCR>;
-			reset-names = "phy";
+			resets = <&gcc GCC_PCIE_4_PHY_BCR>,
+				 <&gcc GCC_PCIE_4_NOCSR_COM_PHY_BCR>;
+			reset-names = "phy", "phy_nocsr";
 
 			#clock-cells = <0>;
 			clock-output-names = "pcie_4_pipe_clk";
@@ -2763,8 +2765,9 @@
 					<&gem_noc MASTER_APPSS_PROC 0 &config_noc SLAVE_PCIE_3B 0>;
 			interconnect-names = "pcie-mem", "cpu-pcie";
 
-			resets = <&gcc GCC_PCIE_3B_BCR>;
-			reset-names = "pci";
+			resets = <&gcc GCC_PCIE_3B_BCR>,
+				 <&gcc GCC_PCIE_3B_LINK_DOWN_BCR>;
+			reset-names = "pci", "link_down";
 
 			power-domains = <&gcc PCIE_3B_GDSC>;
 			required-opps = <&rpmhpd_opp_nom>;
@@ -2802,8 +2805,9 @@
 
 			power-domains = <&gcc PCIE_3B_GDSC>;
 
-			resets = <&gcc GCC_PCIE_3B_PHY_BCR>;
-			reset-names = "phy";
+			resets = <&gcc GCC_PCIE_3B_PHY_BCR>,
+				 <&gcc GCC_PCIE_3B_NOCSR_COM_PHY_BCR>;
+			reset-names = "phy", "phy_nocsr";
 
 			#clock-cells = <0>;
 			clock-output-names = "pcie_3b_pipe_clk";
@@ -2874,8 +2878,9 @@
 					<&gem_noc MASTER_APPSS_PROC 0 &config_noc SLAVE_PCIE_3A 0>;
 			interconnect-names = "pcie-mem", "cpu-pcie";
 
-			resets = <&gcc GCC_PCIE_3A_BCR>;
-			reset-names = "pci";
+			resets = <&gcc GCC_PCIE_3A_BCR>,
+				 <&gcc GCC_PCIE_3A_LINK_DOWN_BCR>;
+			reset-names = "pci", "link_down";
 
 			power-domains = <&gcc PCIE_3A_GDSC>;
 			required-opps = <&rpmhpd_opp_nom>;
@@ -2914,8 +2919,9 @@
 
 			power-domains = <&gcc PCIE_3A_GDSC>;
 
-			resets = <&gcc GCC_PCIE_3A_PHY_BCR>;
-			reset-names = "phy";
+			resets = <&gcc GCC_PCIE_3A_PHY_BCR>,
+				 <&gcc GCC_PCIE_3A_NOCSR_COM_PHY_BCR>;
+			reset-names = "phy", "phy_nocsr";
 
 			qcom,4ln-config-sel = <&tcsr 0xa044 1>;
 
@@ -2988,8 +2994,9 @@
 					<&gem_noc MASTER_APPSS_PROC 0 &config_noc SLAVE_PCIE_2B 0>;
 			interconnect-names = "pcie-mem", "cpu-pcie";
 
-			resets = <&gcc GCC_PCIE_2B_BCR>;
-			reset-names = "pci";
+			resets = <&gcc GCC_PCIE_2B_BCR>,
+				 <&gcc GCC_PCIE_2B_LINK_DOWN_BCR>;
+			reset-names = "pci", "link_down";
 
 			power-domains = <&gcc PCIE_2B_GDSC>;
 			required-opps = <&rpmhpd_opp_nom>;
@@ -3027,8 +3034,9 @@
 
 			power-domains = <&gcc PCIE_2B_GDSC>;
 
-			resets = <&gcc GCC_PCIE_2B_PHY_BCR>;
-			reset-names = "phy";
+			resets = <&gcc GCC_PCIE_2B_PHY_BCR>,
+				 <&gcc GCC_PCIE_2B_NOCSR_COM_PHY_BCR>;
+			reset-names = "phy", "phy_nocsr";
 
 			#clock-cells = <0>;
 			clock-output-names = "pcie_2b_pipe_clk";
@@ -3099,8 +3107,9 @@
 					<&gem_noc MASTER_APPSS_PROC 0 &config_noc SLAVE_PCIE_2A 0>;
 			interconnect-names = "pcie-mem", "cpu-pcie";
 
-			resets = <&gcc GCC_PCIE_2A_BCR>;
-			reset-names = "pci";
+			resets = <&gcc GCC_PCIE_2A_BCR>,
+				 <&gcc GCC_PCIE_2A_LINK_DOWN_BCR>;
+			reset-names = "pci", "link_down";
 
 			power-domains = <&gcc PCIE_2A_GDSC>;
 			required-opps = <&rpmhpd_opp_nom>;
@@ -3139,8 +3148,9 @@
 
 			power-domains = <&gcc PCIE_2A_GDSC>;
 
-			resets = <&gcc GCC_PCIE_2A_PHY_BCR>;
-			reset-names = "phy";
+			resets = <&gcc GCC_PCIE_2A_PHY_BCR>,
+				 <&gcc GCC_PCIE_2A_NOCSR_COM_PHY_BCR>;
+			reset-names = "phy", "phy_nocsr";
 
 			qcom,4ln-config-sel = <&tcsr 0xa044 0>;
 
