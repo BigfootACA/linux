@@ -25,9 +25,13 @@
  */
 #define CHG_ULOG_IND			0x53
 
-#define LOG_DEFAULT_TIME_MS		1000
+#define LOG_DEFAULT_TIME_MS		100
 
 #define MAX_ULOG_SIZE			8192
+
+static bool log_to_dmesg;
+module_param(log_to_dmesg, bool, 0644);
+MODULE_PARM_DESC(log_to_dmesg, "Print PMIC ChargerPD ULOG messages to dmesg");
 
 struct pmic_pdcharger_ulog_hdr {
 	__le32 owner;
@@ -98,8 +102,11 @@ static void pmic_pdcharger_ulog_handle_message(struct pmic_pdcharger_ulog *pg,
 
 	do {
 		token = strsep(&buf, "\n");
-		if (token && strlen(token))
+		if (token && strlen(token)) {
 			trace_pmic_pdcharger_ulog_msg(token);
+			if (log_to_dmesg)
+				pr_info("pmic_pdcharger_ulog: %s\n", token);
+		}
 	} while (token);
 }
 
