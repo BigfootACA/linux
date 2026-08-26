@@ -598,9 +598,15 @@ static int tc956x_mac_configure(struct tc956x_data *td,
 
 static int tc956x_mac_enable(struct tc956x_data *td)
 {
-	const struct tc956x_chip *chip = td->auxbus_data->chip;
-	u32 id = td->auxbus_data->mac_id;
+	const struct tc956x_chip *chip;
+	u32 id;
 	int ret;
+
+	if (!td || !td->auxbus_data || !td->auxbus_data->chip)
+		return -ENODEV;
+
+	chip = td->auxbus_data->chip;
+	id = td->auxbus_data->mac_id;
 
 	tc956x_clock_enable(chip, id, MAC_CLOCK_TX);
 	tc956x_clock_enable(chip, id, MAC_CLOCK_RX);
@@ -630,8 +636,15 @@ static int tc956x_mac_enable(struct tc956x_data *td)
 
 static void tc956x_mac_disable(struct tc956x_data *td)
 {
-	const struct tc956x_chip *chip = td->auxbus_data->chip;
-	u32 id = td->auxbus_data->mac_id;
+	const struct tc956x_chip *chip;
+	u32 id;
+
+	if (!td || !td->auxbus_data || !td->auxbus_data->chip)
+		return;
+
+	chip = td->auxbus_data->chip;
+	id = td->auxbus_data->mac_id;
+
 	tc956x_reset_assert(chip, id, MAC_RESET_MAC);
 	tc956x_reset_assert(chip, id, MAC_RESET_PMA);
 	tc956x_reset_assert(chip, id, MAC_RESET_XPCS);
