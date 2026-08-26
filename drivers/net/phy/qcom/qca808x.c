@@ -103,6 +103,7 @@ struct qca808x_led_mode_cfg {
 struct qca808x_priv {
 	int led_mode;
 	int led_polarity_mode;
+	bool skip_bmcr_reset;
 	int wake_irq;
 	u32 wolopts;
 	bool wake_irq_enabled;
@@ -178,6 +179,9 @@ static void qca808x_parse_dt(struct phy_device *phydev)
 	struct qca808x_priv *priv = phydev->priv;
 	u32 led_mode;
 	int ret;
+
+	priv->skip_bmcr_reset = device_property_read_bool(dev,
+							  "qca,skip-bmcr-reset");
 
 	ret = device_property_read_u32(dev, "qca,led-mode", &led_mode);
 	if (ret)
@@ -463,7 +467,11 @@ static int qca808x_read_status(struct phy_device *phydev)
 
 static int qca808x_soft_reset(struct phy_device *phydev)
 {
+	struct qca808x_priv *priv = phydev->priv;
 	int ret;
+
+	if (priv->skip_bmcr_reset)
+		return 0;
 
 	ret = genphy_soft_reset(phydev);
 	if (ret < 0)
