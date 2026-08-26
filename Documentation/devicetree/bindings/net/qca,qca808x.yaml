@@ -36,6 +36,12 @@ properties:
       - 2
       - 3
 
+  qca,skip-bmcr-reset:
+    type: boolean
+    description:
+      Skip the Clause 22 BMCR software reset during PHY initialization.
+      Use this only when an external reset sequence already initializes the PHY.
+
   wakeup-gpios:
     maxItems: 1
     description:
