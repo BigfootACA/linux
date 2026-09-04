@@ -1060,6 +1060,7 @@
 
 			tc956x_emac0: pci@0,0 {
 				compatible = "pci1179,0220";
+				toshiba,aspm-quirk;
 				reg = <0x50000 0x0 0x0 0x0 0x0>;
 				#address-cells = <3>;
 				#size-cells = <2>;
@@ -1114,6 +1115,7 @@
 
 			pci@0,1 {
 				compatible = "pci1179,0220";
+				toshiba,aspm-quirk;
 				reg = <0x50100 0x0 0x0 0x0 0x0>;
 				#address-cells = <3>;
 				#size-cells = <2>;
