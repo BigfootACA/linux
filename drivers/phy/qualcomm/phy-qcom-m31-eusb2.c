@@ -285,10 +285,21 @@ static int m31eusb2_phy_probe(struct platform_device *pdev)
 
 	phy_set_drvdata(phy->phy, phy);
 
+	/*
+	 * The repeater is optional: some boards use an external eUSB2
+	 * repeater that needs no host-side configuration (it is strapped, or
+	 * set up by the bootloader) and so has no phy provider in DT.  The
+	 * phy core treats a NULL phy as a no-op in phy_init()/phy_exit()/
+	 * phy_set_mode_ext(), so simply carry on without one.
+	 */
 	phy->repeater = devm_of_phy_get_by_index(dev, dev->of_node, 0);
-	if (IS_ERR(phy->repeater))
-		return dev_err_probe(dev, PTR_ERR(phy->repeater),
-				     "failed to get repeater\n");
+	if (IS_ERR(phy->repeater)) {
+		if (PTR_ERR(phy->repeater) != -ENODEV)
+			return dev_err_probe(dev, PTR_ERR(phy->repeater),
+					     "failed to get repeater\n");
+		phy->repeater = NULL;
+		dev_dbg(dev, "no repeater in DT, continuing without one\n");
+	}
 
 	phy_provider = devm_of_phy_provider_register(dev, of_phy_simple_xlate);
 
