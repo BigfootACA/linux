@@ -29,7 +29,9 @@ properties:
   resx-gpios:
     maxItems: 1
     description:
-      GPIO controlling the RESX# pin.
+      GPIO controlling the RESX# pin. This is optional on designs where the
+      reset is managed by the power-on reset circuit and is not routed to the
+      host.
 
   vdd18-supply: true
 
@@ -49,8 +51,9 @@ properties:
       A phandle to the parent I2C node and the slave address of the device
       used to configure tc9563 to change FTS, tx amplitude etc.
     items:
-      - description: Phandle to the I2C controller node
-      - description: I2C slave address
+      - items:
+          - description: Phandle to the I2C controller node
+          - description: I2C slave address
 
   toshiba,axi-bus-frequency-half:
     type: boolean
@@ -86,7 +89,6 @@ $defs:
           impedance mismatches.
 
 required:
-  - resx-gpios
   - vdd18-supply
   - vdd09-supply
   - vddc-supply
