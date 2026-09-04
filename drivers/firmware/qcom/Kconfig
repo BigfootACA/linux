@@ -58,6 +58,16 @@ config QCOM_QSEECOM
 
 	  Select Y here to enable the QSEECOM interface driver.
 
+config QCOM_QSEE_LOG
+	bool "Qualcomm QSEE log buffer"
+	depends on QCOM_QSEECOM
+	depends on DEBUG_FS
+	help
+	  Allocate and register a shared log buffer with the Qualcomm Secure
+	  Execution Environment. The raw ring buffer is exposed through
+	  debugfs for firmware and trusted application diagnostics. This is
+	  intended for low-level secure-world troubleshooting.
+
 config QCOM_QSEECOM_UEFISECAPP
 	bool "Qualcomm SEE UEFI Secure App client driver"
 	depends on QCOM_QSEECOM
