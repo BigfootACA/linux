@@ -453,6 +453,17 @@ config VIDEO_OV08X40
 	  To compile this driver as a module, choose M here: the
 	  module will be called ov08x40.
 
+config VIDEO_OV32D40
+	tristate "OmniVision OV32D40 sensor support"
+	depends on GPIOLIB
+	select V4L2_CCI_I2C
+	help
+	  This is a Video4Linux2 sensor driver for the OmniVision OV32D40
+	  camera sensor.
+
+	  To compile this driver as a module, choose M here: the module will be
+	  called ov32d40.
+
 config VIDEO_OV13858
 	tristate "OmniVision OV13858 sensor support"
 	help
