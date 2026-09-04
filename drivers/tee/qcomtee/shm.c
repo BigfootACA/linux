@@ -5,6 +5,8 @@
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
+#include <linux/cma.h>
+#include <linux/dma-map-ops.h>
 #include <linux/firmware/qcom/qcom_tzmem.h>
 #include <linux/mm.h>
 
@@ -114,14 +116,158 @@ static int qcomtee_shm_unregister(struct tee_context *ctx, struct tee_shm *shm)
 	return 0;
 }
 
+static int qcomtee_shm_alloc_cma(struct tee_shm_pool *pool,
+				 struct tee_shm *shm, size_t size)
+{
+#if IS_ENABLED(CONFIG_DMA_CMA)
+	struct cma *cma = pool->private_data;
+	struct page *page;
+	struct page **pages;
+	size_t num_pages;
+	size_t i;
+	int ret;
+
+	if (!cma || !size || size > SIZE_MAX - (PAGE_SIZE - 1))
+		return -ENOMEM;
+
+	shm->size = PAGE_ALIGN(size);
+	num_pages = shm->size >> PAGE_SHIFT;
+	pages = kcalloc(num_pages, sizeof(*pages), GFP_KERNEL);
+	if (!pages)
+		return -ENOMEM;
+
+	page = cma_alloc(cma, num_pages, 0, false);
+	if (!page) {
+		ret = -ENOMEM;
+		goto err_free_pages;
+	}
+
+	shm->kaddr = page_address(page);
+	if (!shm->kaddr) {
+		ret = -ENOMEM;
+		goto err_release_cma;
+	}
+
+	shm->paddr = page_to_phys(page);
+	shm->pages = pages;
+	shm->num_pages = num_pages;
+	for (i = 0; i < num_pages; i++)
+		pages[i] = pfn_to_page(page_to_pfn(page) + i);
+
+	memset(shm->kaddr, 0, shm->size);
+	ret = qcomtee_shm_register(shm->ctx, shm, pages, num_pages,
+				   (unsigned long)shm->kaddr);
+	if (ret)
+		goto err_release_cma;
+
+	return 0;
+
+err_release_cma:
+	shm->kaddr = NULL;
+	shm->pages = NULL;
+	shm->num_pages = 0;
+	cma_release(cma, page, num_pages);
+err_free_pages:
+	kfree(pages);
+	return ret;
+#else
+	return -ENOMEM;
+#endif
+}
+
+static void qcomtee_shm_free_cma(struct tee_shm_pool *pool,
+				 struct tee_shm *shm)
+{
+#if IS_ENABLED(CONFIG_DMA_CMA)
+	struct cma *cma = pool->private_data;
+	struct page *page = shm->pages[0];
+
+	qcomtee_shm_unregister(shm->ctx, shm);
+	WARN_ON_ONCE(!cma_release(cma, page, shm->num_pages));
+
+	shm->kaddr = NULL;
+	kfree(shm->pages);
+	shm->pages = NULL;
+	shm->num_pages = 0;
+#endif
+}
+
+static bool qcomtee_shm_needs_cma(size_t size)
+{
+	return size && get_order(size) > MAX_PAGE_ORDER;
+}
+
+/* Some legacy QSEE applications only accept 32-bit physical addresses. */
+static int qcomtee_shm_alloc_user_lowmem(struct tee_shm *shm, size_t size)
+{
+	struct page **pages;
+	size_t num_pages;
+	size_t i;
+	int ret;
+
+	if (!size || size > SIZE_MAX - (PAGE_SIZE - 1))
+		return -ENOMEM;
+
+	shm->size = PAGE_ALIGN(size);
+	shm->kaddr = alloc_pages_exact(shm->size,
+				       GFP_KERNEL | GFP_DMA | __GFP_ZERO);
+	if (!shm->kaddr)
+		return -ENOMEM;
+
+	shm->paddr = virt_to_phys(shm->kaddr);
+	if (shm->paddr >= SZ_4G || shm->size > SZ_4G - shm->paddr) {
+		ret = -ENOMEM;
+		goto err_free_exact;
+	}
+
+	num_pages = shm->size >> PAGE_SHIFT;
+	pages = kcalloc(num_pages, sizeof(*pages), GFP_KERNEL);
+	if (!pages) {
+		ret = -ENOMEM;
+		goto err_free_exact;
+	}
+
+	for (i = 0; i < num_pages; i++)
+		pages[i] = virt_to_page((u8 *)shm->kaddr + i * PAGE_SIZE);
+
+	shm->pages = pages;
+	shm->num_pages = num_pages;
+	ret = qcomtee_shm_register(shm->ctx, shm, pages, num_pages,
+				   (unsigned long)shm->kaddr);
+	if (ret)
+		goto err_free_page_array;
+
+	return 0;
+
+err_free_page_array:
+	kfree(shm->pages);
+	shm->pages = NULL;
+	shm->num_pages = 0;
+err_free_exact:
+	free_pages_exact(shm->kaddr, shm->size);
+	shm->kaddr = NULL;
+	return ret;
+}
+
 static int pool_op_alloc(struct tee_shm_pool *pool, struct tee_shm *shm,
 			 size_t size, size_t align)
 {
+	if (qcomtee_shm_needs_cma(size))
+		return qcomtee_shm_alloc_cma(pool, shm, size);
+	/* TEE_IOC_SHM_ALLOC assigns user-visible buffers a nonnegative ID. */
+	if (size && shm->id >= 0)
+		return qcomtee_shm_alloc_user_lowmem(shm, size);
+
 	return tee_dyn_shm_alloc_helper(shm, size, align, qcomtee_shm_register);
 }
 
 static void pool_op_free(struct tee_shm_pool *pool, struct tee_shm *shm)
 {
+	if (qcomtee_shm_needs_cma(shm->size)) {
+		qcomtee_shm_free_cma(pool, shm);
+		return;
+	}
+
 	tee_dyn_shm_free_helper(shm, qcomtee_shm_unregister);
 }
 
@@ -136,7 +282,7 @@ static const struct tee_shm_pool_ops pool_ops = {
 	.destroy_pool = pool_op_destroy_pool,
 };
 
-struct tee_shm_pool *qcomtee_shm_pool_alloc(void)
+struct tee_shm_pool *qcomtee_shm_pool_alloc(struct device *dev)
 {
 	struct tee_shm_pool *pool;
 
@@ -145,6 +291,9 @@ struct tee_shm_pool *qcomtee_shm_pool_alloc(void)
 		return ERR_PTR(-ENOMEM);
 
 	pool->ops = &pool_ops;
+#if IS_ENABLED(CONFIG_DMA_CMA)
+	pool->private_data = dev_get_cma_area(dev);
+#endif
 
 	return pool;
 }

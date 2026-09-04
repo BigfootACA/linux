@@ -43,7 +43,7 @@ void qcomtee_fetch_async_reqs(struct qcomtee_object_invoke_ctx *oic);
 struct qcomtee_object *qcomtee_idx_erase(struct qcomtee_object_invoke_ctx *oic,
 					 u32 idx);
 
-struct tee_shm_pool *qcomtee_shm_pool_alloc(void);
+struct tee_shm_pool *qcomtee_shm_pool_alloc(struct device *dev);
 void qcomtee_msg_buffers_free(struct qcomtee_object_invoke_ctx *oic);
 int qcomtee_msg_buffers_alloc(struct qcomtee_object_invoke_ctx *oic,
 			      struct qcomtee_arg *u);

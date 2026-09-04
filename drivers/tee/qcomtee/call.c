@@ -709,7 +709,7 @@ static int qcomtee_probe(struct platform_device *pdev)
 	if (!qcomtee)
 		return -ENOMEM;
 
-	pool = qcomtee_shm_pool_alloc();
+	pool = qcomtee_shm_pool_alloc(&pdev->dev);
 	if (IS_ERR(pool)) {
 		err = PTR_ERR(pool);
 
