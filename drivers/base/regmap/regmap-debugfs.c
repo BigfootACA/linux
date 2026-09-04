@@ -13,6 +13,7 @@
 #include <linux/device.h>
 #include <linux/list.h>
 #include <linux/idr.h>
+#include <linux/pm_runtime.h>
 
 #include "internal.h"
 
@@ -223,6 +224,7 @@ static ssize_t regmap_read_debugfs(struct regmap *map, unsigned int from,
 	int i;
 	char *buf;
 	unsigned int val, start_reg;
+	bool rpm_acquired = false;
 
 	if (*ppos < 0 || !count)
 		return -EINVAL;
@@ -230,9 +232,23 @@ static ssize_t regmap_read_debugfs(struct regmap *map, unsigned int from,
 	if (count > (PAGE_SIZE << MAX_PAGE_ORDER))
 		count = PAGE_SIZE << MAX_PAGE_ORDER;
 
+	/*
+	 * A register map can remain visible while its runtime-PM-controlled MMIO
+	 * region is powered down. Keep the device active for the whole dump so a
+	 * debugfs read cannot access an unavailable register window.
+	 */
+	if (map->dev && pm_runtime_enabled(map->dev)) {
+		ret = pm_runtime_resume_and_get(map->dev);
+		if (ret < 0)
+			return ret;
+		rpm_acquired = true;
+	}
+
 	buf = kmalloc(count, GFP_KERNEL);
-	if (!buf)
-		return -ENOMEM;
+	if (!buf) {
+		ret = -ENOMEM;
+		goto out_rpm;
+	}
 
 	regmap_calc_tot_len(map, buf, count);
 
@@ -279,6 +295,11 @@ static ssize_t regmap_read_debugfs(struct regmap *map, unsigned int from,
 
 out:
 	kfree(buf);
+
+out_rpm:
+	if (rpm_acquired)
+		pm_runtime_put(map->dev);
+
 	return ret;
 }
 
