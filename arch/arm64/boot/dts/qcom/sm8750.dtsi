@@ -2086,7 +2086,8 @@
 				 <&bi_tcxo_ao_div2>,
 				 <&sleep_clk>;
 			power-domains = <&rpmhpd RPMHPD_MMCX>,
-					<&rpmhpd RPMHPD_MX>;
+					<&rpmhpd RPMHPD_MX>,
+					<&camcc CAM_CC_TITAN_TOP_GDSC>;
 			required-opps = <&rpmhpd_opp_low_svs>,
 					<&rpmhpd_opp_low_svs>;
 
