@@ -21,6 +21,7 @@
 #include <linux/phy.h>
 #include <linux/regmap.h>
 #include <linux/stmmac.h>
+#include <linux/string.h>
 #include <linux/types.h>
 #include <linux/units.h>
 
@@ -434,6 +435,9 @@ tc956x_msigen_irq_domain_instantiate(struct tc956x_data *td)
 {
 	struct irq_domain_chip_generic_info dgc_info;
 	struct irq_domain_info info;
+
+	memset(&dgc_info, 0, sizeof(dgc_info));
+	memset(&info, 0, sizeof(info));
 
 	dgc_info.name = devm_kasprintf(td->dev, GFP_KERNEL, "tc956x-msigen-%d",
 				       td->auxbus_data->mac_id);
