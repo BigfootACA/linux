@@ -204,6 +204,8 @@ int qcom_scm_query_tpm_type(u64 *type);
 int qcom_scm_qseecom_app_get_id(const char *app_name, u32 *app_id);
 int qcom_scm_qseecom_app_send(u32 app_id, void *req, size_t req_size,
 			      void *rsp, size_t rsp_size);
+int qcom_scm_qseecom_get_feature_version(u32 feature, u64 *version);
+int qcom_scm_qseecom_register_log_buf(phys_addr_t paddr, size_t size);
 
 #else /* CONFIG_QCOM_QSEECOM */
 
@@ -215,6 +217,18 @@ static inline int qcom_scm_qseecom_app_get_id(const char *app_name, u32 *app_id)
 static inline int qcom_scm_qseecom_app_send(u32 app_id,
 					    void *req, size_t req_size,
 					    void *rsp, size_t rsp_size)
+{
+	return -EINVAL;
+}
+
+static inline int qcom_scm_qseecom_get_feature_version(u32 feature,
+						       u64 *version)
+{
+	return -EINVAL;
+}
+
+static inline int qcom_scm_qseecom_register_log_buf(phys_addr_t paddr,
+						    size_t size)
 {
 	return -EINVAL;
 }

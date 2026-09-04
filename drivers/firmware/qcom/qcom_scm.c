@@ -137,6 +137,7 @@ enum qcom_scm_qseecom_tz_svc {
 enum qcom_scm_qseecom_tz_cmd_app {
 	QSEECOM_TZ_CMD_APP_SEND			= 1,
 	QSEECOM_TZ_CMD_APP_LOOKUP		= 3,
+	QSEECOM_TZ_CMD_APP_REGISTER_LOG		= 6,
 };
 
 enum qcom_scm_qseecom_tz_cmd_info {
@@ -2221,20 +2222,23 @@ static int qcom_scm_qseecom_call(const struct qcom_scm_desc *desc,
 }
 
 /**
- * qcom_scm_qseecom_get_version() - Query the QSEECOM version.
- * @version: Pointer where the QSEECOM version will be stored.
+ * qcom_scm_qseecom_get_feature_version() - Query a QSEE feature version.
+ * @feature: QSEE feature identifier.
+ * @version: Pointer where the feature version will be stored.
  *
- * Performs the QSEECOM SCM querying the QSEECOM version currently running in
- * the TrustZone.
+ * Performs the QSEECOM SCM call that queries the requested feature version
+ * from TrustZone.
  *
  * Return: Zero on success, nonzero on failure.
  */
-static int qcom_scm_qseecom_get_version(u32 *version)
+int qcom_scm_qseecom_get_feature_version(u32 feature, u64 *version)
 {
 	struct qcom_scm_desc desc = {};
 	struct qcom_scm_qseecom_resp res = {};
-	u32 feature = 10;
 	int ret;
+
+	if (!version)
+		return -EINVAL;
 
 	desc.owner = QSEECOM_TZ_OWNER_SIP;
 	desc.svc = QSEECOM_TZ_SVC_INFO;
@@ -2249,6 +2253,47 @@ static int qcom_scm_qseecom_get_version(u32 *version)
 	*version = res.result;
 	return 0;
 }
+EXPORT_SYMBOL_GPL(qcom_scm_qseecom_get_feature_version);
+
+static int qcom_scm_qseecom_get_version(u32 *version)
+{
+	u64 feature_version;
+	int ret;
+
+	ret = qcom_scm_qseecom_get_feature_version(10, &feature_version);
+	if (ret)
+		return ret;
+
+	*version = feature_version;
+	return 0;
+}
+
+int qcom_scm_qseecom_register_log_buf(phys_addr_t paddr, size_t size)
+{
+	struct qcom_scm_desc desc = {
+		.owner = QSEECOM_TZ_OWNER_QSEE_OS,
+		.svc = QSEECOM_TZ_SVC_APP_MGR,
+		.cmd = QSEECOM_TZ_CMD_APP_REGISTER_LOG,
+		.arginfo = QCOM_SCM_ARGS(2, QCOM_SCM_RW, QCOM_SCM_VAL),
+		.args[0] = paddr,
+		.args[1] = size,
+	};
+	struct qcom_scm_qseecom_resp res = {};
+	int ret;
+
+	if (!paddr || !size)
+		return -EINVAL;
+
+	ret = qcom_scm_qseecom_call(&desc, &res);
+	if (ret)
+		return ret;
+
+	if (res.result != QSEECOM_RESULT_SUCCESS)
+		return -EIO;
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(qcom_scm_qseecom_register_log_buf);
 
 /**
  * qcom_scm_qseecom_app_get_id() - Query the app ID for a given QSEE app name.
