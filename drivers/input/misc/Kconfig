@@ -901,6 +901,18 @@ config INPUT_XEN_KBDDEV_FRONTEND
 	  To compile this driver as a module, choose M here: the
 	  module will be called xen-kbdfront.
 
+config INPUT_XIAOMI_SIDE_FINGERPRINT
+	tristate "Xiaomi TrustZone side fingerprint control shim"
+	depends on OF && GPIOLIB && NET && REGULATOR
+	help
+	  Enable the non-secure control shim for side-mounted fingerprint
+	  sensors used by Xiaomi devices. Sensor transactions remain owned by
+	  TrustZone; this driver controls only power, reset and interrupt lines.
+
+	  The driver exposes /dev/xiaomi-fp and a subset of Xiaomi's mi_fp
+	  userspace ABI. It can be built as a module named
+	  xiaomi-side-fingerprint.
+
 config INPUT_IDEAPAD_SLIDEBAR
 	tristate "IdeaPad Laptop Slidebar"
 	depends on INPUT
