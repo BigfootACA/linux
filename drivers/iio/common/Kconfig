@@ -3,6 +3,19 @@
 # IIO common modules
 #
 
+config IIO_QCOM_SENSING_HUB
+	tristate "Qualcomm Sensing Hub IIO bridge"
+	depends on (ARCH_QCOM || COMPILE_TEST) && NET && OF && QRTR
+	select IIO_BUFFER
+	select IIO_KFIFO_BUF
+	select QCOM_QMI_HELPERS
+	help
+	  Say yes to expose sensors managed by a Qualcomm Sensing Hub through
+	  standard Industrial I/O devices on supported machines. The physical
+	  sensor buses remain
+	  controlled by the remote sensor processor; samples are received over
+	  the QSH QMI client service.
+
 source "drivers/iio/common/cros_ec_sensors/Kconfig"
 source "drivers/iio/common/hid-sensors/Kconfig"
 source "drivers/iio/common/inv_sensors/Kconfig"
