@@ -51,6 +51,13 @@
 #define S5KJN1_REG_X_OUTPUT_SIZE	CCI_REG16(0x034c)
 #define S5KJN1_REG_Y_OUTPUT_SIZE	CCI_REG16(0x034e)
 
+#define S5KJN1_NATIVE_WIDTH		8192U
+#define S5KJN1_NATIVE_HEIGHT		6176U
+#define S5KJN1_PIXEL_ARRAY_LEFT		16U
+#define S5KJN1_PIXEL_ARRAY_TOP		16U
+#define S5KJN1_PIXEL_ARRAY_WIDTH	8160U
+#define S5KJN1_PIXEL_ARRAY_HEIGHT	6144U
+
 #define S5KJN1_REG_TEST_PATTERN		CCI_REG16(0x0600)
 
 #define to_s5kjn1(_sd)			container_of(_sd, struct s5kjn1, sd)
@@ -1068,24 +1075,27 @@ static int s5kjn1_get_selection(struct v4l2_subdev *sd,
 				struct v4l2_subdev_state *sd_state,
 				struct v4l2_subdev_selection *sel)
 {
-	struct s5kjn1 *s5kjn1 = to_s5kjn1(sd);
-
 	if (sel->which != V4L2_SUBDEV_FORMAT_ACTIVE)
 		return -EINVAL;
 
 	switch (sel->target) {
 	case V4L2_SEL_TGT_CROP:
+	case V4L2_SEL_TGT_CROP_DEFAULT:
 	case V4L2_SEL_TGT_CROP_BOUNDS:
+		sel->r.left = S5KJN1_PIXEL_ARRAY_LEFT;
+		sel->r.top = S5KJN1_PIXEL_ARRAY_TOP;
+		sel->r.width = S5KJN1_PIXEL_ARRAY_WIDTH;
+		sel->r.height = S5KJN1_PIXEL_ARRAY_HEIGHT;
+		return 0;
+	case V4L2_SEL_TGT_NATIVE_SIZE:
 		sel->r.left = 0;
 		sel->r.top = 0;
-		sel->r.width = s5kjn1->mode->width;
-		sel->r.height = s5kjn1->mode->width;
+		sel->r.width = S5KJN1_NATIVE_WIDTH;
+		sel->r.height = S5KJN1_NATIVE_HEIGHT;
 		return 0;
 	default:
 		return -EINVAL;
 	}
-
-	return 0;
 }
 
 static int s5kjn1_init_state(struct v4l2_subdev *sd,
