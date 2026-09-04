@@ -46,9 +46,11 @@ properties:
   power-domains:
     description:
       Power domains required for the clock controller to operate
+    minItems: 2
     items:
       - description: MMCX power domain
       - description: MXC power domain
+      - description: Camera Titan top power domain
 
   required-opps:
     description:
@@ -67,6 +69,19 @@ required:
 
 allOf:
   - $ref: qcom,gcc.yaml#
+  - if:
+      properties:
+        compatible:
+          contains:
+            const: qcom,sm8750-cambistmclkcc
+    then:
+      properties:
+        power-domains:
+          minItems: 3
+    else:
+      properties:
+        power-domains:
+          maxItems: 2
   - if:
       properties:
         compatible:
