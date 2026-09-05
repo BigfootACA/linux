@@ -683,7 +683,6 @@ static struct arm_smmu_device *qcom_smmu_create(struct arm_smmu_device *smmu,
 	const struct device_node *np = smmu->dev->of_node;
 	const struct arm_smmu_impl *impl;
 	struct qcom_smmu *qsmmu;
-	u32 id;
 
 	if (!data)
 		return ERR_PTR(-EINVAL);
@@ -700,7 +699,8 @@ static struct arm_smmu_device *qcom_smmu_create(struct arm_smmu_device *smmu,
 	 * than 10 context banks, so use adreno_impl for those devices.
 	 */
 	if (!np) {
-		id = arm_smmu_gr0_read(smmu, ARM_SMMU_GR0_ID0);
+		u32 id = arm_smmu_gr0_read(smmu, ARM_SMMU_GR0_ID0);
+
 		if (FIELD_GET(ARM_SMMU_ID1_NUMCB, id) < 10)
 			impl = data->adreno_impl;
 	}
