@@ -367,9 +367,19 @@ static int apr_device_probe(struct device *dev)
 	struct apr_driver *adrv = to_apr_driver(dev->driver);
 	int ret;
 
+	/*
+	 * Install the response callback before probing. A driver may issue a
+	 * synchronous request from its own probe - q6apm asks the DSP for the
+	 * SPF state - and the reply can arrive while probe is still running.
+	 * gpr_do_rx_callback() drops packets for a service with no callback,
+	 * so setting it afterwards loses that reply and the request always
+	 * times out, no matter how long it waits.
+	 */
+	adev->svc.callback = adrv->gpr_callback;
+
 	ret = adrv->probe(adev);
-	if (!ret)
-		adev->svc.callback = adrv->gpr_callback;
+	if (ret)
+		adev->svc.callback = NULL;
 
 	return ret;
 }
