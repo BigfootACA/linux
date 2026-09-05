@@ -310,6 +310,9 @@ static const struct ufs_dev_quirk ufs_fixups[] = {
 	  .model = UFS_ANY_MODEL,
 	  .quirk = UFS_DEVICE_QUIRK_DELAY_BEFORE_LPM },
 	{ .wmanufacturerid = UFS_VENDOR_TOSHIBA,
+	  .model = "THGJFLT2G46BATPB",
+	  .quirk = UFS_DEVICE_QUIRK_NO_HEALTH_CRITICAL_EE },
+	{ .wmanufacturerid = UFS_VENDOR_TOSHIBA,
 	  .model = "THGLF2G9C8KBADG",
 	  .quirk = UFS_DEVICE_QUIRK_PA_TACTIVATE },
 	{ .wmanufacturerid = UFS_VENDOR_TOSHIBA,
@@ -8856,7 +8859,8 @@ static int ufs_get_device_desc(struct ufs_hba *hba)
 
 	ufshcd_temp_notif_probe(hba, desc_buf);
 
-	if (dev_info->wspecversion >= 0x410) {
+	if (dev_info->wspecversion >= 0x410 &&
+	    !(hba->dev_quirks & UFS_DEVICE_QUIRK_NO_HEALTH_CRITICAL_EE)) {
 		hba->critical_health_count = 0;
 		ufshcd_enable_ee(hba, MASK_EE_HEALTH_CRITICAL);
 	}

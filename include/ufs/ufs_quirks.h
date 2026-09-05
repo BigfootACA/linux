@@ -109,4 +109,12 @@ struct ufs_dev_quirk {
 /* Some UFS 4 devices do not support the qTimestamp attribute */
 #define UFS_DEVICE_QUIRK_NO_TIMESTAMP_SUPPORT	(1 << 13)
 
+/*
+ * Some devices report a specification version that implies support for the
+ * critical health exception event, but reject the corresponding bit when it
+ * is written to wExceptionEventControl. There is no capability bit to test
+ * for, so the deviation has to be listed here.
+ */
+#define UFS_DEVICE_QUIRK_NO_HEALTH_CRITICAL_EE	(1 << 14)
+
 #endif /* UFS_QUIRKS_H_ */
