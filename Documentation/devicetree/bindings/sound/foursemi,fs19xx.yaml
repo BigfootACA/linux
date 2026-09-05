@@ -1,0 +1,76 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/sound/foursemi,fs19xx.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: FourSemi FS19xx smart speaker amplifier
+
+maintainers:
+  - Junhao Xie <bigfoot@radxa.com>
+
+description:
+  A boosted class-D speaker amplifier with an I2S input, an I2S feedback
+  output carrying the measured speaker current and voltage, and an I2C
+  control port. Several parts share the FS19xx register map and report a
+  device ID of either 0x17 or 0x29.
+
+allOf:
+  - $ref: dai-common.yaml#
+
+properties:
+  compatible:
+    const: foursemi,fs19xx
+
+  reg:
+    maxItems: 1
+
+  reset-gpios:
+    maxItems: 1
+    description:
+      Active-low shutdown pin of the amplifier. Holding it low powers the
+      analogue blocks down; releasing it brings the part up. The register
+      file itself is reset over I2C.
+
+  interrupts:
+    maxItems: 1
+
+  foursemi,i2s-channel:
+    $ref: /schemas/types.yaml#/definitions/uint32
+    enum: [1, 2, 3]
+    default: 3
+    description: |
+      Which I2S channel the amplifier reproduces:
+        1 - left
+        2 - right
+        3 - the sum of both
+
+  '#sound-dai-cells':
+    const: 0
+
+  sound-name-prefix: true
+
+required:
+  - compatible
+  - reg
+  - '#sound-dai-cells'
+
+unevaluatedProperties: false
+
+examples:
+  - |
+    #include <dt-bindings/gpio/gpio.h>
+
+    i2c {
+        #address-cells = <1>;
+        #size-cells = <0>;
+
+        speaker@34 {
+            compatible = "foursemi,fs19xx";
+            reg = <0x34>;
+            #sound-dai-cells = <0>;
+            reset-gpios = <&tlmm 128 GPIO_ACTIVE_LOW>;
+            foursemi,i2s-channel = <1>;
+            sound-name-prefix = "SpkTopLeft";
+        };
+    };
