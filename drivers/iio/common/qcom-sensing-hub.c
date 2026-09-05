@@ -791,7 +791,7 @@ static int qsh_transact(struct qsh_hub *hub,
 		hub->client_id_valid = true;
 	}
 	mutex_unlock(&hub->state_lock);
-	if (ret)
+	if (ret < 0)
 		goto out_unlock;
 
 	if (response.result_valid && response.result) {
@@ -2063,7 +2063,7 @@ static int qsh_read_sample(struct qsh_sensor *sensor, unsigned int channel,
 	if (send_disable) {
 		int disable_ret = qsh_send_sensor_request(sensor, false);
 
-		if (!disable_ret || disable_ret == -ENOTCONN) {
+		if (disable_ret >= 0 || disable_ret == -ENOTCONN) {
 			mutex_lock(&hub->state_lock);
 			sensor->direct_enabled = false;
 			sensor->service_enabled = false;
