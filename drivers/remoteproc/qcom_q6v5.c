@@ -79,7 +79,9 @@ EXPORT_SYMBOL_GPL(qcom_q6v5_prepare);
  */
 int qcom_q6v5_unprepare(struct qcom_q6v5 *q6v5)
 {
-	disable_irq(q6v5->handover_irq);
+	/* The handover interrupt masks itself once it has been taken. */
+	if (!q6v5->handover_issued)
+		disable_irq(q6v5->handover_irq);
 	q6v5_load_state_toggle(q6v5, false);
 
 	/* Disable interconnect vote, in case handover never happened */
@@ -176,6 +178,15 @@ static irqreturn_t q6v5_handover_interrupt(int irq, void *data)
 	icc_set_bw(q6v5->path, 0, 0);
 
 	q6v5->handover_issued = true;
+
+	/*
+	 * The proxy resources are gone and nothing is left to do for the rest
+	 * of this remote processor's life, so stop listening. Some firmware
+	 * raises the handover signal again every time the processor comes back
+	 * from a power collapse, which would otherwise wake us for nothing.
+	 * qcom_q6v5_prepare() enables the interrupt again for the next boot.
+	 */
+	disable_irq_nosync(q6v5->handover_irq);
 
 	return IRQ_HANDLED;
 }
