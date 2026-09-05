@@ -921,12 +921,8 @@ static struct iommu_domain *arm_smmu_domain_alloc_paging(struct device *dev)
 	struct arm_smmu_domain *smmu_domain;
 	struct arm_smmu_master_cfg *cfg = dev_iommu_priv_get(dev);
 	struct arm_smmu_device *smmu = cfg->smmu;
+	int ret;
 
-	/*
-	 * Allocate the domain and initialise some of its data structures.
-	 * We can't really do anything meaningful until we've added a
-	 * master.
-	 */
 	smmu_domain = kzalloc_obj(*smmu_domain);
 	if (!smmu_domain)
 		return NULL;
@@ -935,7 +931,28 @@ static struct iommu_domain *arm_smmu_domain_alloc_paging(struct device *dev)
 	spin_lock_init(&smmu_domain->cb_lock);
 	smmu_domain->domain.pgsize_bitmap = smmu->pgsize_bitmap;
 
+	/*
+	 * Finalise the domain here rather than waiting for the first attach.
+	 * The core installs the direct mappings that firmware asked for before
+	 * it attaches the device, so that whatever the boot loader left running
+	 * - a framebuffer scanning out of memory, typically - keeps its
+	 * translations across the handover. That can only work once the page
+	 * tables exist, and the instance backing them is already known here.
+	 */
+	ret = arm_smmu_rpm_get(smmu);
+	if (ret < 0)
+		goto out_free;
+
+	ret = arm_smmu_init_domain_context(smmu_domain, smmu, dev);
+	arm_smmu_rpm_put(smmu);
+	if (ret < 0)
+		goto out_free;
+
 	return &smmu_domain->domain;
+
+out_free:
+	kfree(smmu_domain);
+	return NULL;
 }
 
 static void arm_smmu_domain_free(struct iommu_domain *domain)
