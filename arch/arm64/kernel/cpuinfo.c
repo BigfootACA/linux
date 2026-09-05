@@ -211,6 +211,79 @@ static const char *const compat_hwcap2_str[] = {
 };
 #endif /* CONFIG_COMPAT */
 
+/*
+ * /proc/cpuinfo has never carried a "model name" on arm64: userspace is
+ * supposed to read the MIDR fields below and look the part up itself.
+ * Plenty of it does not - gnome-control-center, for one, gives up and
+ * shows an empty processor field - so name the part here as well for the
+ * cores we can recognise, and fall back to the architecture otherwise.
+ */
+#define MIDR_NAME(imp, part, str) { MIDR_CPU_MODEL(imp, part), str }
+
+static const struct {
+	u32 midr;
+	const char *name;
+} midr_names[] = {
+	MIDR_NAME(ARM_CPU_IMP_ARM, ARM_CPU_PART_CORTEX_A57, "ARM Cortex-A57"),
+	MIDR_NAME(ARM_CPU_IMP_ARM, ARM_CPU_PART_CORTEX_A72, "ARM Cortex-A72"),
+	MIDR_NAME(ARM_CPU_IMP_ARM, ARM_CPU_PART_CORTEX_A53, "ARM Cortex-A53"),
+	MIDR_NAME(ARM_CPU_IMP_ARM, ARM_CPU_PART_CORTEX_A73, "ARM Cortex-A73"),
+	MIDR_NAME(ARM_CPU_IMP_ARM, ARM_CPU_PART_CORTEX_A75, "ARM Cortex-A75"),
+	MIDR_NAME(ARM_CPU_IMP_ARM, ARM_CPU_PART_CORTEX_A35, "ARM Cortex-A35"),
+	MIDR_NAME(ARM_CPU_IMP_ARM, ARM_CPU_PART_CORTEX_A55, "ARM Cortex-A55"),
+	MIDR_NAME(ARM_CPU_IMP_ARM, ARM_CPU_PART_CORTEX_A76, "ARM Cortex-A76"),
+	MIDR_NAME(ARM_CPU_IMP_ARM, ARM_CPU_PART_NEOVERSE_N1, "ARM Neoverse-N1"),
+	MIDR_NAME(ARM_CPU_IMP_ARM, ARM_CPU_PART_CORTEX_A77, "ARM Cortex-A77"),
+	MIDR_NAME(ARM_CPU_IMP_ARM, ARM_CPU_PART_CORTEX_A76AE, "ARM Cortex-A76AE"),
+	MIDR_NAME(ARM_CPU_IMP_ARM, ARM_CPU_PART_NEOVERSE_V1, "ARM Neoverse-V1"),
+	MIDR_NAME(ARM_CPU_IMP_ARM, ARM_CPU_PART_CORTEX_A78, "ARM Cortex-A78"),
+	MIDR_NAME(ARM_CPU_IMP_ARM, ARM_CPU_PART_CORTEX_A78AE, "ARM Cortex-A78AE"),
+	MIDR_NAME(ARM_CPU_IMP_ARM, ARM_CPU_PART_CORTEX_X1, "ARM Cortex-X1"),
+	MIDR_NAME(ARM_CPU_IMP_ARM, ARM_CPU_PART_CORTEX_A510, "ARM Cortex-A510"),
+	MIDR_NAME(ARM_CPU_IMP_ARM, ARM_CPU_PART_CORTEX_A520, "ARM Cortex-A520"),
+	MIDR_NAME(ARM_CPU_IMP_ARM, ARM_CPU_PART_CORTEX_A710, "ARM Cortex-A710"),
+	MIDR_NAME(ARM_CPU_IMP_ARM, ARM_CPU_PART_CORTEX_A715, "ARM Cortex-A715"),
+	MIDR_NAME(ARM_CPU_IMP_ARM, ARM_CPU_PART_CORTEX_X2, "ARM Cortex-X2"),
+	MIDR_NAME(ARM_CPU_IMP_ARM, ARM_CPU_PART_NEOVERSE_N2, "ARM Neoverse-N2"),
+	MIDR_NAME(ARM_CPU_IMP_ARM, ARM_CPU_PART_CORTEX_A78C, "ARM Cortex-A78C"),
+	MIDR_NAME(ARM_CPU_IMP_ARM, ARM_CPU_PART_CORTEX_X1C, "ARM Cortex-X1C"),
+	MIDR_NAME(ARM_CPU_IMP_ARM, ARM_CPU_PART_CORTEX_X3, "ARM Cortex-X3"),
+	MIDR_NAME(ARM_CPU_IMP_ARM, ARM_CPU_PART_NEOVERSE_V2, "ARM Neoverse-V2"),
+	MIDR_NAME(ARM_CPU_IMP_ARM, ARM_CPU_PART_CORTEX_A720, "ARM Cortex-A720"),
+	MIDR_NAME(ARM_CPU_IMP_ARM, ARM_CPU_PART_CORTEX_X4, "ARM Cortex-X4"),
+	MIDR_NAME(ARM_CPU_IMP_ARM, ARM_CPU_PART_NEOVERSE_V3AE, "ARM Neoverse-V3AE"),
+	MIDR_NAME(ARM_CPU_IMP_ARM, ARM_CPU_PART_NEOVERSE_V3, "ARM Neoverse-V3"),
+	MIDR_NAME(ARM_CPU_IMP_ARM, ARM_CPU_PART_CORTEX_X925, "ARM Cortex-X925"),
+	MIDR_NAME(ARM_CPU_IMP_ARM, ARM_CPU_PART_CORTEX_A725, "ARM Cortex-A725"),
+	MIDR_NAME(ARM_CPU_IMP_ARM, ARM_CPU_PART_CORTEX_A720AE, "ARM Cortex-A720AE"),
+	MIDR_NAME(ARM_CPU_IMP_ARM, ARM_CPU_PART_C1_ULTRA, "ARM C1-Ultra"),
+	MIDR_NAME(ARM_CPU_IMP_ARM, ARM_CPU_PART_NEOVERSE_N3, "ARM Neoverse-N3"),
+	MIDR_NAME(ARM_CPU_IMP_ARM, ARM_CPU_PART_C1_PRO, "ARM C1-Pro"),
+	MIDR_NAME(ARM_CPU_IMP_ARM, ARM_CPU_PART_C1_PREMIUM, "ARM C1-Premium"),
+	MIDR_NAME(ARM_CPU_IMP_QCOM, QCOM_CPU_PART_FALKOR_V1, "Qualcomm Falkor"),
+	MIDR_NAME(ARM_CPU_IMP_QCOM, QCOM_CPU_PART_FALKOR, "Qualcomm Falkor"),
+	MIDR_NAME(ARM_CPU_IMP_QCOM, QCOM_CPU_PART_KRYO, "Qualcomm Kryo"),
+	MIDR_NAME(ARM_CPU_IMP_QCOM, QCOM_CPU_PART_KRYO_2XX_GOLD, "Qualcomm Kryo 2XX Gold"),
+	MIDR_NAME(ARM_CPU_IMP_QCOM, QCOM_CPU_PART_KRYO_2XX_SILVER, "Qualcomm Kryo 2XX Silver"),
+	MIDR_NAME(ARM_CPU_IMP_QCOM, QCOM_CPU_PART_KRYO_3XX_GOLD, "Qualcomm Kryo 3XX Gold"),
+	MIDR_NAME(ARM_CPU_IMP_QCOM, QCOM_CPU_PART_KRYO_3XX_SILVER, "Qualcomm Kryo 3XX Silver"),
+	MIDR_NAME(ARM_CPU_IMP_QCOM, QCOM_CPU_PART_KRYO_4XX_GOLD, "Qualcomm Kryo 4XX Gold"),
+	MIDR_NAME(ARM_CPU_IMP_QCOM, QCOM_CPU_PART_KRYO_4XX_SILVER, "Qualcomm Kryo 4XX Silver"),
+	MIDR_NAME(ARM_CPU_IMP_QCOM, QCOM_CPU_PART_ORYON_X1, "Qualcomm Oryon"),
+};
+
+static const char *midr_model_name(u32 midr)
+{
+	u32 model = midr & MIDR_CPU_MODEL_MASK;
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(midr_names); i++)
+		if (midr_names[i].midr == model)
+			return midr_names[i].name;
+
+	return NULL;
+}
+
 static int c_show(struct seq_file *m, void *v)
 {
 	int j;
@@ -225,9 +298,18 @@ static int c_show(struct seq_file *m, void *v)
 	 * "processor".  Give glibc what it expects.
 	 */
 	seq_printf(m, "processor\t: %d\n", cpu);
-	if (compat)
+	if (compat) {
 		seq_printf(m, "model name\t: ARMv8 Processor rev %d (%s)\n",
 			   MIDR_REVISION(midr), COMPAT_ELF_PLATFORM);
+	} else {
+		const char *name = midr_model_name(midr);
+
+		if (name)
+			seq_printf(m, "model name\t: %s\n", name);
+		else
+			seq_printf(m, "model name\t: ARMv8 Processor rev %d (%s)\n",
+				   MIDR_REVISION(midr), ELF_PLATFORM);
+	}
 
 	seq_printf(m, "BogoMIPS\t: %lu.%02lu\n",
 		   loops_per_jiffy / (500000UL/HZ),
