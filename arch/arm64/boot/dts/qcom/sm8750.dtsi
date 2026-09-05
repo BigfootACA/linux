@@ -5491,7 +5491,7 @@
 			};
 		};
 
-		tn@109ab000 {
+		tn: tn@109ab000 {
 			compatible = "qcom,coresight-tnoc", "arm,primecell";
 			reg = <0x0 0x109ab000 0x0 0x4200>;
 
@@ -6243,7 +6243,10 @@
 
 		ufs_mem_hc: ufs@1d84000 {
 			compatible = "qcom,sm8750-ufshc", "qcom,ufshc", "jedec,ufs-2.0";
-			reg = <0x0 0x01d84000 0x0 0x3000>;
+			reg = <0x0 0x01d84000 0x0 0x3000>,
+			      <0x0 0x01da0000 0x0 0x15000>;
+			reg-names = "std",
+				    "mcq";
 
 			interrupts = <GIC_SPI 265 IRQ_TYPE_LEVEL_HIGH>;
 
