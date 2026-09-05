@@ -4459,6 +4459,38 @@
 				bias-pull-up;
 			};
 
+			mi2s1_active: mi2s1-active-state {
+				sck-pins {
+					pins = "gpio121";
+					function = "i2s1_sck";
+					drive-strength = <8>;
+					bias-disable;
+					output-high;
+				};
+
+				ws-pins {
+					pins = "gpio123";
+					function = "i2s1_ws";
+					drive-strength = <8>;
+					bias-disable;
+					output-high;
+				};
+
+				data0-pins {
+					pins = "gpio122";
+					function = "i2s1_data0";
+					drive-strength = <8>;
+					bias-disable;
+				};
+
+				data1-pins {
+					pins = "gpio124";
+					function = "i2s1_data1";
+					drive-strength = <8>;
+					bias-disable;
+				};
+			};
+
 			pcie0_default_state: pcie0-default-state {
 				perst-pins {
 					pins = "gpio102";
