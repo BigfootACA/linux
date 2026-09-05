@@ -125,6 +125,7 @@ config SND_SOC_ALL_CODECS
 	imply SND_SOC_ES7134
 	imply SND_SOC_ES7241
 	imply SND_SOC_FRAMER
+	imply SND_SOC_FS19XX
 	imply SND_SOC_FS210X
 	imply SND_SOC_GTM601
 	imply SND_SOC_HDAC_HDMI
@@ -1313,6 +1314,15 @@ config SND_SOC_FRAMER
 config SND_SOC_FS_AMP_LIB
 	select CRC16
 	tristate
+
+config SND_SOC_FS19XX
+	tristate 'FourSemi FS19xx smart speaker amplifier'
+	depends on I2C
+	select CRC16
+	select REGMAP_I2C
+	help
+	  Enable support for the FourSemi FS19xx family of boosted class-D
+	  smart speaker amplifiers, driven over I2S with an I2C control port.
 
 config SND_SOC_FS210X
 	tristate 'FourSemi FS2104/5S digital audio amplifier'
