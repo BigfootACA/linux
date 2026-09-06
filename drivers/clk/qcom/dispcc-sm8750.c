@@ -1760,16 +1760,7 @@ static struct gdsc mdss_gdsc = {
 		.name = "mdss_gdsc",
 	},
 	.pwrsts = PWRSTS_OFF_ON,
-	/*
-	 * Mark this always-on through the gdsc flag rather than presetting
-	 * pd.flags: gdsc_init() only powers an always-on domain up when it
-	 * sees ALWAYS_ON here, and pm_genpd_init() rejects a domain that is
-	 * already flagged GENPD_FLAG_ALWAYS_ON but reads as off ("always-on
-	 * PM domain mdss_gdsc is not on", -EINVAL).  That is what happens on
-	 * boards whose bootloader leaves MDSS powered down, which killed the
-	 * whole disp_cc probe and with it MDSS, the DPU and the GPU.
-	 */
-	.flags = POLL_CFG_GDSCR | HW_CTRL | RETAIN_FF_ENABLE | ALWAYS_ON,
+	.flags = POLL_CFG_GDSCR | HW_CTRL | RETAIN_FF_ENABLE,
 };
 
 static struct gdsc mdss_int2_gdsc = {
