@@ -836,6 +836,19 @@ static void nanosic_vendor_report(struct nanosic *nano, const u8 *report,
 		if (len < 8)
 			return;
 		attach = d[7] & NANOSIC_ATTACH_REPORTED;
+
+		/*
+		 * The keyboard is the only thing that can tell laptop mode
+		 * from tablet mode apart.  The folio hall sensors cannot: a
+		 * cover folded out of the way and no cover at all both read
+		 * as no magnet, and a bare tablet is the shipping
+		 * configuration.  The input core drops the report if the
+		 * state has not moved, so this can run on every update.
+		 */
+		input_report_switch(nano->wake_input, SW_TABLET_MODE,
+				    !(attach & NANOSIC_ATTACH_CONNECTED));
+		input_sync(nano->wake_input);
+
 		if (nano->attach_state == attach)
 			break;
 		nano->attach_state = attach;
@@ -1196,6 +1209,16 @@ static int nanosic_register_wake_input(struct nanosic *nano)
 	input->id.product = 0x0094;
 
 	input_set_capability(input, EV_KEY, KEY_WAKEUP);
+	input_set_capability(input, EV_SW, SW_TABLET_MODE);
+
+	/*
+	 * Start out in tablet mode.  Probe asks the MCU for the attach
+	 * state right after this, and a keyboard that is there answers and
+	 * corrects it; one that is not there answers with the same zero the
+	 * driver already assumes, so the initial state has to be the one
+	 * that a bare tablet needs.
+	 */
+	__set_bit(SW_TABLET_MODE, input->sw);
 
 	nano->wake_input = input;
 
