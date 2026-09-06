@@ -75,6 +75,41 @@ static struct qcomtee_object_operations qcomtee_mem_object_ops = {
 };
 
 /**
+ * qcomtee_memobj_from_shm() - Wrap shared memory in a QTEE memory object.
+ * @object: object returned.
+ * @shm: shared memory to wrap.
+ *
+ * The caller keeps its reference to @shm; the object takes one of its own and
+ * drops it when QTEE is done with it.
+ *
+ * Return: On success return 0 or <0 on failure.
+ */
+int qcomtee_memobj_from_shm(struct qcomtee_object **object, struct tee_shm *shm)
+{
+	int err;
+
+	struct qcomtee_mem_object *mem_object __free(kfree) = kzalloc_obj(*mem_object);
+	if (!mem_object)
+		return -ENOMEM;
+
+	err = qcomtee_object_user_init(&mem_object->object,
+				       QCOMTEE_OBJECT_TYPE_CB,
+				       &qcomtee_mem_object_ops, "tee-shm-%d",
+				       shm->id);
+	if (err)
+		return err;
+
+	refcount_inc(&shm->refcount);
+	mem_object->paddr = shm->paddr;
+	mem_object->size = shm->size;
+	mem_object->shm = shm;
+
+	*object = &no_free_ptr(mem_object)->object;
+
+	return 0;
+}
+
+/**
  * qcomtee_memobj_param_to_object() - OBJREF parameter to &struct qcomtee_object.
  * @object: object returned.
  * @param: TEE parameter.

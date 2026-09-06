@@ -148,6 +148,10 @@ extern struct qcomtee_object qcomtee_primordial_object;
 
 /* Is it a memory object using tee_shm? */
 int is_qcomtee_memobj_object(struct qcomtee_object *object);
+int qcomtee_memobj_from_shm(struct qcomtee_object **object, struct tee_shm *shm);
+
+void qcomtee_apploader_init(void);
+void qcomtee_apploader_exit(void);
 
 /**
  * qcomtee_memobj_param_to_object() - OBJREF parameter to &struct qcomtee_object.
