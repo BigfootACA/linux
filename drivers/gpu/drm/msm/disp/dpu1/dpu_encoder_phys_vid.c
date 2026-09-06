@@ -617,6 +617,19 @@ static void dpu_encoder_phys_vid_disable(struct dpu_encoder_phys *phys_enc)
 		return;
 	}
 
+	/*
+	 * Tear the pipeline down while the timing engine is still running.
+	 * The cleanup ends in a CTL flush, and in video mode a flush is only
+	 * consumed at a frame boundary.  Doing this after the timing engine
+	 * has been stopped leaves the flush to be swallowed by the CTL_START
+	 * that follows it, which video mode does not otherwise use, and the
+	 * teardown then only reaches the shadow registers.  The stale active
+	 * configuration survives into the next enable and the SSPP fetch
+	 * never restarts: every register reads back correctly while the
+	 * layer mixer keeps emitting its border colour.
+	 */
+	dpu_encoder_helper_phys_cleanup(phys_enc);
+
 	spin_lock_irqsave(phys_enc->enc_spinlock, lock_flags);
 	phys_enc->hw_intf->ops.enable_timing(phys_enc->hw_intf, 0);
 	if (dpu_encoder_phys_vid_is_master(phys_enc))
@@ -661,7 +674,6 @@ static void dpu_encoder_phys_vid_disable(struct dpu_encoder_phys *phys_enc)
 		}
 	}
 
-	dpu_encoder_helper_phys_cleanup(phys_enc);
 	phys_enc->enable_state = DPU_ENC_DISABLED;
 }
 
