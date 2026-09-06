@@ -122,6 +122,13 @@ enum qcom_scm_qseecom_resp_type {
 	QSEECOM_SCM_RES_QSEOS_LISTENER_ID	= 0xEE02,
 };
 
+/* Argument block for QSEECOM_TZ_CMD_APP_REGION_NOTIFY. */
+struct qcom_scm_qseecom_app_region {
+	u32 cmd_id;
+	u64 addr;
+	u32 size;
+} __packed;
+
 enum qcom_scm_qseecom_tz_owner {
 	QSEECOM_TZ_OWNER_SIP			= 2,
 	QSEECOM_TZ_OWNER_TZ_APPS		= 48,
@@ -136,7 +143,10 @@ enum qcom_scm_qseecom_tz_svc {
 
 enum qcom_scm_qseecom_tz_cmd_app {
 	QSEECOM_TZ_CMD_APP_SEND			= 1,
+	QSEECOM_TZ_CMD_APP_START		= 1,
+	QSEECOM_TZ_CMD_APP_SHUTDOWN		= 2,
 	QSEECOM_TZ_CMD_APP_LOOKUP		= 3,
+	QSEECOM_TZ_CMD_APP_REGION_NOTIFY	= 5,
 	QSEECOM_TZ_CMD_APP_REGISTER_LOG		= 6,
 };
 
@@ -2351,6 +2361,132 @@ int qcom_scm_qseecom_app_get_id(const char *app_name, u32 *app_id)
 	return 0;
 }
 EXPORT_SYMBOL_GPL(qcom_scm_qseecom_app_get_id);
+
+/**
+ * qcom_scm_qseecom_app_region_notify() - Tell the SEE where applications live.
+ * @addr: Physical address of the region.
+ * @size: Size of the region in bytes.
+ *
+ * The SEE keeps the applications it loads in a region of memory that the
+ * non-secure side sets aside for it, and it refuses to load anything until it
+ * has been told where that region is.  Call this once, before the first
+ * qcom_scm_qseecom_app_load().
+ *
+ * Return: Zero on success, nonzero on failure.
+ */
+int qcom_scm_qseecom_app_region_notify(phys_addr_t addr, size_t size)
+{
+	struct qcom_scm_desc desc = {};
+	struct qcom_scm_qseecom_resp res = {};
+	int status;
+
+	struct qcom_scm_qseecom_app_region *region __free(qcom_tzmem) =
+		qcom_tzmem_alloc(__scm->mempool, sizeof(*region), GFP_KERNEL);
+	if (!region)
+		return -ENOMEM;
+
+	region->cmd_id = QSEECOM_TZ_CMD_APP_REGION_NOTIFY;
+	region->addr = addr;
+	region->size = size;
+
+	desc.owner = QSEECOM_TZ_OWNER_QSEE_OS;
+	desc.svc = QSEECOM_TZ_SVC_APP_MGR;
+	desc.cmd = QSEECOM_TZ_CMD_APP_REGION_NOTIFY;
+	desc.arginfo = QCOM_SCM_ARGS(2, QCOM_SCM_RW, QCOM_SCM_VAL);
+	desc.args[0] = qcom_tzmem_to_phys(region);
+	desc.args[1] = sizeof(*region);
+
+	status = qcom_scm_qseecom_call(&desc, &res);
+	if (status)
+		return status;
+
+	if (res.result != QSEECOM_RESULT_SUCCESS)
+		return -EIO;
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(qcom_scm_qseecom_app_region_notify);
+
+/**
+ * qcom_scm_qseecom_app_load() - Load an application image into the SEE.
+ * @phys:     Physical address of the image.  The image must be laid out as the
+ *            concatenation of its MDT and its segment files, each segment at
+ *            the file offset its program header gives.
+ * @mdt_size: Size of the MDT part of the image.
+ * @img_size: Size of the whole image.
+ * @app_id:   The returned app ID.
+ *
+ * Hand an application image to the SEE, which authenticates it against the
+ * metadata carried in the MDT and, on success, starts it.  The application
+ * name is taken from that metadata, not from the caller.
+ *
+ * The memory backing the image has to be physically contiguous and is only
+ * read during the call; the caller may release it once this returns.
+ *
+ * Return: Zero on success, nonzero on failure.
+ */
+int qcom_scm_qseecom_app_load(phys_addr_t phys, size_t mdt_size,
+			      size_t img_size, u32 *app_id)
+{
+	struct qcom_scm_desc desc = {};
+	struct qcom_scm_qseecom_resp res = {};
+	int status;
+
+	desc.owner = QSEECOM_TZ_OWNER_QSEE_OS;
+	desc.svc = QSEECOM_TZ_SVC_APP_MGR;
+	desc.cmd = QSEECOM_TZ_CMD_APP_START;
+	desc.arginfo = QCOM_SCM_ARGS(3, QCOM_SCM_VAL, QCOM_SCM_VAL,
+				     QCOM_SCM_VAL);
+	desc.args[0] = mdt_size;
+	desc.args[1] = img_size;
+	desc.args[2] = phys;
+
+	status = qcom_scm_qseecom_call(&desc, &res);
+	if (status)
+		return status;
+
+	if (res.result == QSEECOM_RESULT_FAILURE)
+		return -EIO;
+
+	if (res.result != QSEECOM_RESULT_SUCCESS)
+		return -EINVAL;
+
+	if (res.resp_type != QSEECOM_SCM_RES_APP_ID)
+		return -EINVAL;
+
+	*app_id = res.data;
+	return 0;
+}
+EXPORT_SYMBOL_GPL(qcom_scm_qseecom_app_load);
+
+/**
+ * qcom_scm_qseecom_app_shutdown() - Stop and unload an SEE application.
+ * @app_id: The ID of the application to shut down.
+ *
+ * Return: Zero on success, nonzero on failure.
+ */
+int qcom_scm_qseecom_app_shutdown(u32 app_id)
+{
+	struct qcom_scm_desc desc = {};
+	struct qcom_scm_qseecom_resp res = {};
+	int status;
+
+	desc.owner = QSEECOM_TZ_OWNER_QSEE_OS;
+	desc.svc = QSEECOM_TZ_SVC_APP_MGR;
+	desc.cmd = QSEECOM_TZ_CMD_APP_SHUTDOWN;
+	desc.arginfo = QCOM_SCM_ARGS(1, QCOM_SCM_VAL);
+	desc.args[0] = app_id;
+
+	status = qcom_scm_qseecom_call(&desc, &res);
+	if (status)
+		return status;
+
+	if (res.result != QSEECOM_RESULT_SUCCESS)
+		return -EIO;
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(qcom_scm_qseecom_app_shutdown);
 
 /**
  * qcom_scm_qseecom_app_send() - Send to and receive data from a given QSEE app.

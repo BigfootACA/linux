@@ -68,6 +68,17 @@ config QCOM_QSEE_LOG
 	  debugfs for firmware and trusted application diagnostics. This is
 	  intended for low-level secure-world troubleshooting.
 
+config QCOM_QSEECOM_TA
+	tristate "Qualcomm SEE application loader"
+	depends on QCOM_QSEECOM
+	help
+	  Load a Trusted Application into the Secure Execution Environment
+	  from its split MDT image. Android loads these on demand from its own
+	  userspace; on a mainline system nothing does, so an application that
+	  a driver wants to talk to has to be started explicitly.
+
+	  If unsure, say N.
+
 config QCOM_QSEECOM_UEFISECAPP
 	bool "Qualcomm SEE UEFI Secure App client driver"
 	depends on QCOM_QSEECOM
