@@ -122,6 +122,8 @@ struct msm_dsi_phy {
 	struct clk_hw_onecell_data *provided_clocks;
 
 	bool state_saved;
+
+	struct clk *ahb_clk;
 };
 
 /*
