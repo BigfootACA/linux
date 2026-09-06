@@ -2303,9 +2303,7 @@ static void arm_smmu_device_shutdown(struct platform_device *pdev)
 	if (pm_runtime_enabled(smmu->dev))
 		pm_runtime_force_suspend(smmu->dev);
 	else
-		clk_bulk_disable(smmu->num_clks, smmu->clks);
-
-	clk_bulk_unprepare(smmu->num_clks, smmu->clks);
+		clk_bulk_disable_unprepare(smmu->num_clks, smmu->clks);
 }
 
 static void arm_smmu_device_remove(struct platform_device *pdev)
@@ -2323,7 +2321,7 @@ static int __maybe_unused arm_smmu_runtime_resume(struct device *dev)
 	struct arm_smmu_device *smmu = dev_get_drvdata(dev);
 	int ret;
 
-	ret = clk_bulk_enable(smmu->num_clks, smmu->clks);
+	ret = clk_bulk_prepare_enable(smmu->num_clks, smmu->clks);
 	if (ret)
 		return ret;
 
@@ -2336,45 +2334,25 @@ static int __maybe_unused arm_smmu_runtime_suspend(struct device *dev)
 {
 	struct arm_smmu_device *smmu = dev_get_drvdata(dev);
 
-	clk_bulk_disable(smmu->num_clks, smmu->clks);
+	clk_bulk_disable_unprepare(smmu->num_clks, smmu->clks);
 
 	return 0;
 }
 
 static int __maybe_unused arm_smmu_pm_resume(struct device *dev)
 {
-	int ret;
-	struct arm_smmu_device *smmu = dev_get_drvdata(dev);
-
-	ret = clk_bulk_prepare(smmu->num_clks, smmu->clks);
-	if (ret)
-		return ret;
-
 	if (pm_runtime_suspended(dev))
 		return 0;
 
-	ret = arm_smmu_runtime_resume(dev);
-	if (ret)
-		clk_bulk_unprepare(smmu->num_clks, smmu->clks);
-
-	return ret;
+	return arm_smmu_runtime_resume(dev);
 }
 
 static int __maybe_unused arm_smmu_pm_suspend(struct device *dev)
 {
-	int ret = 0;
-	struct arm_smmu_device *smmu = dev_get_drvdata(dev);
-
 	if (pm_runtime_suspended(dev))
-		goto clk_unprepare;
+		return 0;
 
-	ret = arm_smmu_runtime_suspend(dev);
-	if (ret)
-		return ret;
-
-clk_unprepare:
-	clk_bulk_unprepare(smmu->num_clks, smmu->clks);
-	return ret;
+	return arm_smmu_runtime_suspend(dev);
 }
 
 static const struct dev_pm_ops arm_smmu_pm_ops = {
