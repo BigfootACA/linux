@@ -100,8 +100,15 @@ static int qce_handle_queue(struct qce_device *qce,
 
 		backlog = crypto_get_backlog(&qce->queue);
 		async_req = crypto_dequeue_request(&qce->queue);
-		if (async_req)
+		if (async_req) {
+			err = icc_set_bw(qce->mem_path,
+					 QCE_DEFAULT_MEM_BANDWIDTH,
+					 QCE_DEFAULT_MEM_BANDWIDTH);
+			if (err)
+				return err;
+
 			qce->req = async_req;
+		}
 	}
 
 	if (!async_req)
@@ -136,6 +143,16 @@ static void qce_req_done_work(struct work_struct *work)
 		crypto_request_complete(req, qce->result);
 
 	qce_handle_queue(qce, NULL);
+
+	/*
+	 * Drop the memory bandwidth vote once the engine has run dry.  Holding
+	 * it while idle keeps DDR out of its low power states for as long as
+	 * the driver is bound, which on a battery powered system is the whole
+	 * uptime.
+	 */
+	scoped_guard(mutex, &qce->lock)
+		if (!qce->req)
+			icc_set_bw(qce->mem_path, 0, 0);
 }
 
 static int qce_async_request_enqueue(struct qce_device *qce,
@@ -222,10 +239,6 @@ static int qce_crypto_probe(struct platform_device *pdev)
 	qce->mem_path = devm_of_icc_get(qce->dev, "memory");
 	if (IS_ERR(qce->mem_path))
 		return PTR_ERR(qce->mem_path);
-
-	ret = icc_set_bw(qce->mem_path, QCE_DEFAULT_MEM_BANDWIDTH, QCE_DEFAULT_MEM_BANDWIDTH);
-	if (ret)
-		return ret;
 
 	ret = devm_qce_dma_request(qce->dev, &qce->dma);
 	if (ret)
