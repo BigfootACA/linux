@@ -7491,6 +7491,13 @@ L:	linux-i2c@vger.kernel.org
 S:	Maintained
 F:	drivers/i2c/busses/i2c-diolan-u2c.c
 
+DIOO DIO36600 EUSB2 REPEATER
+M:	Junhao Xie <bigfoot@radxa.com>
+L:	linux-phy@lists.infradead.org
+S:	Maintained
+F:	Documentation/devicetree/bindings/phy/dioo,dio36600.yaml
+F:	drivers/phy/phy-dioo-dio36600.c
+
 DIRECTORY NOTIFICATION (DNOTIFY)
 M:	Jan Kara <jack@suse.cz>
 R:	Amir Goldstein <amir73il@gmail.com>

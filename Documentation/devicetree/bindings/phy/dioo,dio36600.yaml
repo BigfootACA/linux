@@ -1,0 +1,150 @@
+# SPDX-License-Identifier: GPL-2.0-only OR BSD-2-Clause
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/phy/dioo,dio36600.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Dioo DIO36600 1-port eUSB2 to USB 2.0 repeater
+
+description:
+  The repeater translates between eUSB2 and USB 2.0 signalling at Low, Full
+  and High Speed, and negotiates its host or peripheral role in-band.  It
+  comes up in a working configuration from power-on reset; the optional
+  tuning properties below adjust the analog settings of either link for a
+  board's channel.  Properties that are left out keep their power-on default.
+
+maintainers:
+  - Junhao Xie <bigfoot@radxa.com>
+
+properties:
+  compatible:
+    const: dioo,dio36600
+
+  reg:
+    description:
+      The ADDR pin picks one of four target addresses.  It is quaternary and
+      is sampled once, after power-on reset - tie it to GND or to VDD1V8, or
+      pull it up to VDD1V8 through 200 kOhm or 56 kOhm.
+    enum: [0x43, 0x47, 0x4b, 0x4f]
+
+  "#phy-cells":
+    const: 0
+
+  vdd1v8-supply:
+    description: 1.8V supply
+
+  vdd3v3-supply:
+    description: 3.0V-3.6V supply for the USB 2.0 side
+
+  reset-gpios:
+    description:
+      Active-low RST_N input.  It has a weak pull-up, so a design may leave it
+      strapped high and rely on power-on reset instead.
+    maxItems: 1
+
+  dioo,auto-resume:
+    type: boolean
+    description:
+      Host-side repeater feature.  The repeater drives K on both links during
+      a remote wake until the host controller's resume starts, then passes
+      the host's resume signalling to the USB 2.0 bus.
+
+  dioo,eusb2-rx-squelch-threshold-microvolt:
+    description: eUSB2 HS receiver squelch detection threshold.
+    enum: [50000, 65000, 85000, 95000]
+    default: 85000
+
+  dioo,eusb2-rx-equalization-db:
+    description: eUSB2 HS receiver equalization gain at 240 MHz over DC.
+    enum: [0, 1, 2, 3, 4]
+    default: 0
+
+  dioo,eusb2-tx-swing-microvolt:
+    description: eUSB2 HS transmitter output swing into a terminated link.
+    enum: [180000, 200000, 220000, 240000]
+    default: 200000
+
+  dioo,eusb2-tx-de-emphasis-db:
+    description: eUSB2 HS transmitter de-emphasis level.
+    enum: [0, 1, 2, 3]
+    default: 0
+
+  dioo,usb2-rx-squelch-threshold-microvolt:
+    description: USB 2.0 HS receiver squelch detection threshold.
+    enum: [65000, 85000, 95000, 110000, 125000, 140000, 155000]
+    default: 110000
+
+  dioo,usb2-rx-equalization-db:
+    description: USB 2.0 HS receiver equalization gain at 240 MHz over DC.
+    enum: [0, 1, 2, 3, 4]
+    default: 0
+
+  dioo,usb2-tx-de-emphasis-db:
+    description: USB 2.0 HS transmitter de-emphasis level.
+    enum: [0, 1, 2, 3, 4, 5, 6]
+    default: 2
+
+  dioo,usb2-tx-de-emphasis-width-percent:
+    description:
+      Duration of the USB 2.0 HS transmitter de-emphasis, in percent of one
+      HS unit interval.
+    enum: [0, 50, 80]
+    default: 80
+
+  dioo,usb2-tx-swing-microvolt:
+    description: USB 2.0 HS transmitter output swing into a terminated link.
+    enum: [350000, 400000, 450000, 500000, 550000, 600000, 650000, 700000]
+    default: 500000
+
+  dioo,usb2-hs-rise-fall-time-ps:
+    description:
+      USB 2.0 HS transmitter slew rate, given as the upper bound of the
+      rise/fall time range - 500-900 ps, 400-830 ps or 300-760 ps.
+    enum: [900, 830, 760]
+    default: 760
+
+  dioo,usb2-fs-rise-fall-time-ns:
+    description:
+      USB 2.0 FS transmitter slew rate, given as the upper bound of the
+      rise/fall time range - 8-20 ns or 4-14 ns.
+    enum: [20, 14]
+    default: 14
+
+  dioo,usb2-hs-termination-ohms:
+    description: USB 2.0 HS differential termination.
+    enum: [100, 95, 90, 85, 80]
+    default: 90
+
+  dioo,usb2-hs-disconnect-threshold-microvolt:
+    description: USB 2.0 HS disconnect detection threshold.
+    enum: [575000, 675000, 775000, 875000]
+    default: 575000
+
+required:
+  - compatible
+  - reg
+  - "#phy-cells"
+
+additionalProperties: false
+
+examples:
+  - |
+    #include <dt-bindings/gpio/gpio.h>
+
+    i2c {
+        #address-cells = <1>;
+        #size-cells = <0>;
+
+        repeater@43 {
+            compatible = "dioo,dio36600";
+            reg = <0x43>;
+            #phy-cells = <0>;
+            vdd1v8-supply = <&vreg_1p8>;
+            vdd3v3-supply = <&vreg_3p0>;
+            reset-gpios = <&tlmm 42 GPIO_ACTIVE_LOW>;
+
+            dioo,usb2-tx-swing-microvolt = <450000>;
+            dioo,usb2-hs-disconnect-threshold-microvolt = <675000>;
+        };
+    };
+...
