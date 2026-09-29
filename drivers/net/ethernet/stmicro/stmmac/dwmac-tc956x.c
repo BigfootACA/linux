@@ -933,9 +933,12 @@ static int tc956x_dwmac_parse_dt(struct tc956x_data *td)
 	struct device *dev = td->dev;
 	struct device_node *np;
 
+	if (!dev_fwnode(dev))
+		return dev_err_probe(dev, -ENODEV, "no firmware node\n");
+
 	np = dev_of_node(dev);
 	if (!np)
-		return dev_err_probe(dev, -EINVAL, "no devicetree node\n");
+		return 0;
 
 	/* Find the MDIO bus */
 	for_each_child_of_node(np, mdio_node) {

@@ -246,7 +246,7 @@ static void adev_release(struct device *dev)
 {
 	struct auxiliary_device *adev = to_auxiliary_dev(dev);
 
-	of_node_put(adev->dev.of_node);
+	fwnode_handle_put(dev_fwnode(&adev->dev));
 	kfree(adev);
 }
 
@@ -265,16 +265,15 @@ static void chip_instance_id_free(void *data)
 	ida_free(&tc956x_instance_ida, chip->instance_id);
 }
 
-/* The of_node reference is always be dropped (success or not) */
 static int adev_device_add(struct device *dev, const char *name, u32 id,
-			   struct device_node *of_node, void *platform_data)
+			   struct fwnode_handle *fwnode, void *platform_data)
 {
 	struct auxiliary_device *adev;
 	int ret;
 
 	adev = kzalloc_obj(*adev);
 	if (!adev) {
-		of_node_put(of_node);
+		fwnode_handle_put(fwnode);
 		return -ENOMEM;
 	}
 
@@ -283,11 +282,11 @@ static int adev_device_add(struct device *dev, const char *name, u32 id,
 	adev->dev.parent = dev;
 	adev->dev.platform_data = platform_data;
 	adev->dev.release = adev_release;
-	adev->dev.of_node = of_node;
+	device_set_node(&adev->dev, fwnode);
 
 	ret = auxiliary_device_init(adev);
 	if (ret) {
-		of_node_put(of_node);
+		fwnode_handle_put(fwnode);
 		kfree(adev);
 		return ret;
 	}
@@ -301,25 +300,25 @@ static int adev_device_add(struct device *dev, const char *name, u32 id,
 	return devm_add_action_or_reset(dev, adev_remove, adev);
 }
 
-static bool dev_node_has_mdio_child(struct device_node *np)
+static bool fwnode_has_mdio_child(struct fwnode_handle *fwnode)
 {
-	struct device_node *mdio;
+	struct fwnode_handle *mdio;
 
-	mdio = of_get_child_by_name(np, "mdio");
+	mdio = fwnode_get_named_child_node(fwnode, "mdio");
 	if (!mdio)
 		return false;
 
-	of_node_put(mdio);
+	fwnode_handle_put(mdio);
 
 	return true;
 }
 
-static bool dev_node_is_gpio(struct device *dev, struct device_node *np)
+static bool fwnode_is_gpio(struct device *dev, struct fwnode_handle *fwnode)
 {
-	if (!of_property_present(np, "gpio-controller"))
+	if (!fwnode_property_present(fwnode, "gpio-controller"))
 		return false;
 
-	if (!of_property_present(np, "#gpio-cells")) {
+	if (!fwnode_property_present(fwnode, "#gpio-cells")) {
 		dev_err(dev, "gpio node contains no #gpio-cells property\n");
 		return false;
 	}
@@ -327,20 +326,18 @@ static bool dev_node_is_gpio(struct device *dev, struct device_node *np)
 	return true;
 }
 
-/* Returns a reference to the GPIO's DT node, or a null pointer */
-static struct device_node *dev_node_gpio(struct device *dev)
+static struct fwnode_handle *fwnode_gpio(struct device *dev)
 {
-	struct device_node *np;
+	struct fwnode_handle *fwnode = dev_fwnode(dev);
+	struct fwnode_handle *child;
 
 	/* The GPIO sub-node is not required (platform might not need it) */
-	for_each_child_of_node(dev->of_node, np)
-		if (!strcmp(np->name, "gpio"))
-			break;
-	if (np) {
-		if (dev_node_is_gpio(dev, np))
-			return np;
+	child = fwnode_get_named_child_node(fwnode, "gpio");
+	if (child) {
+		if (fwnode_is_gpio(dev, child))
+			return child;
 
-		of_node_put(np);
+		fwnode_handle_put(child);
 
 		return NULL;
 	}
@@ -350,31 +347,31 @@ static struct device_node *dev_node_gpio(struct device *dev)
 	 * PCI function 0 itself. Keep accepting that form so existing DTs do not
 	 * need to grow a gpio sub-node.
 	 */
-	if (dev_node_is_gpio(dev, dev->of_node))
-		return of_node_get(dev->of_node);
+	if (fwnode_is_gpio(dev, fwnode))
+		return fwnode_handle_get(fwnode);
 
 	return NULL;
 }
 
-/* Returns a reference to the XGMAC's DT node, or a null pointer */
-static struct device_node *dev_node_xgmac(struct device *dev)
+static struct fwnode_handle *fwnode_xgmac(struct device *dev)
 {
-	struct device_node *np;
+	struct fwnode_handle *fwnode = dev_fwnode(dev);
+	struct fwnode_handle *child;
 
-	for_each_child_of_node(dev->of_node, np)
-		if (!strcmp(np->name, "ethernet"))
-			return np;
+	child = fwnode_get_named_child_node(fwnode, "ethernet");
+	if (child)
+		return child;
 
 	/*
 	 * The original TC956x binding placed Ethernet controller properties on
 	 * the PCI function node. Treat that node as the XGMAC node when it has
 	 * the old shape.
 	 */
-	if (of_property_present(dev->of_node, "phy-mode") ||
-	    of_property_present(dev->of_node, "phy-connection-type") ||
-	    of_property_present(dev->of_node, "phy-handle") ||
-	    dev_node_has_mdio_child(dev->of_node))
-		return of_node_get(dev->of_node);
+	if (fwnode_property_present(fwnode, "phy-mode") ||
+	    fwnode_property_present(fwnode, "phy-connection-type") ||
+	    fwnode_property_present(fwnode, "phy-handle") ||
+	    fwnode_has_mdio_child(fwnode))
+		return fwnode_handle_get(fwnode);
 
 	return NULL;
 }
@@ -383,20 +380,20 @@ static struct device_node *dev_node_xgmac(struct device *dev)
 static int chip_gpio_adev_add(struct tc956x_chip *chip)
 {
 	struct device *dev = chip->dev;
-	struct device_node *np;
+	struct fwnode_handle *fwnode;
 	struct regmap *regmap;
 
-	np = dev_node_gpio(dev);
-	if (!np)
+	fwnode = fwnode_gpio(dev);
+	if (!fwnode)
 		return 0;
 
 	regmap = devm_regmap_init_mmio(dev, chip->sfr[0], &gpio_regmap_config);
 	if (IS_ERR(regmap)) {
-		of_node_put(np);
+		fwnode_handle_put(fwnode);
 		return PTR_ERR(regmap);
 	}
 
-	return adev_device_add(dev, GPIO_DEVICE_NAME, chip->instance_id, np,
+	return adev_device_add(dev, GPIO_DEVICE_NAME, chip->instance_id, fwnode,
 			       regmap);
 }
 
@@ -409,20 +406,20 @@ static int function_xgmac_adev_add(struct pci_dev *pdev,
 	u8 mac_id = PCI_FUNC(pdev->devfn);
 	struct device *dev = &pdev->dev;
 	struct tc956x_dwmac_data *data;
-	struct device_node *np;
+	struct fwnode_handle *fwnode;
 	void __iomem *sfr;
 	int ret;
 
 	if (mac_id > 1)
 		return -EINVAL;
 
-	np = dev_node_xgmac(dev);
-	if (!np)
+	fwnode = fwnode_xgmac(dev);
+	if (!fwnode)
 		return 0;
 
 	data = devm_kzalloc(dev, sizeof(*data), GFP_KERNEL);
 	if (!data) {
-		of_node_put(np);
+		fwnode_handle_put(fwnode);
 		return -ENOMEM;
 	}
 
@@ -439,7 +436,7 @@ static int function_xgmac_adev_add(struct pci_dev *pdev,
 	data->mac_id = mac_id;
 
 	ret = adev_device_add(dev, TC956X_XGMAC_DEV_NAME,
-			      chip->instance_id * 2 + mac_id, np, data);
+			      chip->instance_id * 2 + mac_id, fwnode, data);
 	if (ret)
 		return ret;
 
@@ -735,9 +732,8 @@ tc956x_function_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	unsigned int msigen_nvec;
 	int ret;
 
-	/* Despite being a PCI device, we require devicetree */
-	if (!dev->of_node)
-		return dev_err_probe(dev, -EINVAL, "no devicetree node\n");
+	if (!dev_fwnode(dev))
+		return dev_err_probe(dev, -EINVAL, "no firmware node\n");
 
 	ret = pcim_enable_device(pdev);
 	if (ret)
@@ -753,7 +749,7 @@ tc956x_function_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	 * so an *idle* TC956X reduces the *other* one to ~0.6 Gbit/s of a 10G
 	 * link, with every lost frame showing up as mmc_rx_fifo_overflow.
 	 */
-	if (of_property_present(dev->of_node, "toshiba,aspm-quirk")) {
+	if (device_property_present(dev, "toshiba,aspm-quirk")) {
 		ret = pci_disable_link_state(pdev, PCIE_LINK_STATE_L1 |
 						   PCIE_LINK_STATE_L1_1 |
 						   PCIE_LINK_STATE_L1_2 |
