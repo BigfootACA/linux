@@ -153,9 +153,11 @@ static int dw9807_ramp(struct i2c_client *client, int start, int end)
 		if (step * (val - end) >= 0)
 			val = end;
 		ret = dw9807_set_dac(client, val);
-		if (ret)
+		if (ret) {
 			dev_err_ratelimited(&client->dev, "%s I2C failure: %d",
 					    __func__, ret);
+			return ret;
+		}
 		if (val == end)
 			break;
 		usleep_range(DW9807_CTRL_DELAY_US, DW9807_CTRL_DELAY_US + 10);
@@ -435,7 +437,7 @@ static int  __maybe_unused dw9807_vcm_resume(struct device *dev)
 MODULE_DEVICE_TABLE(of, dw9807_of_table);
 
 static const struct dev_pm_ops dw9807_pm_ops = {
-	SET_SYSTEM_SLEEP_PM_OPS(dw9807_vcm_suspend, dw9807_vcm_resume)
+	SET_SYSTEM_SLEEP_PM_OPS(pm_runtime_force_suspend, pm_runtime_force_resume)
 	SET_RUNTIME_PM_OPS(dw9807_vcm_suspend, dw9807_vcm_resume, NULL)
 };
 
