@@ -34,6 +34,9 @@
 #define OV32D40_EXPOSURE_DEFAULT	1024
 
 #define OV32D40_REG_GAIN		CCI_REG16(0x3508)
+
+#define OV32D40_REG_VTS			CCI_REG16(0x380E)
+#define OV32D40_VTS_MAX			0xffff
 /* Min 1.125, Max 62.0, Mul 256 */
 #define OV32D40_ANA_GAIN_MIN		288
 #define OV32D40_ANA_GAIN_MAX		15872
@@ -1173,6 +1176,21 @@ static const struct ov32d40_mode supported_modes[] = {
 	},
 };
 
+static s32 ov32d40_vblank_max(const struct ov32d40_mode *mode)
+{
+	u32 ratio = mode->frame_length / mode->sensor_frame_length;
+
+	return min_t(s64, (s64)OV32D40_VTS_MAX * ratio - mode->height,
+		     S32_MAX);
+}
+
+static u32 ov32d40_vblank_to_vts(const struct ov32d40_mode *mode, s32 vblank)
+{
+	u32 ratio = mode->frame_length / mode->sensor_frame_length;
+
+	return (vblank + mode->height) / ratio;
+}
+
 static int ov32d40_check_hwcfg(struct device *dev)
 {
 	struct fwnode_handle *ep;
@@ -1393,7 +1411,7 @@ static int ov32d40_set_fmt(struct v4l2_subdev *sd,
 					 mode->line_length - mode->width);
 		__v4l2_ctrl_modify_range(ov32d40->vblank,
 					 mode->frame_length - mode->height,
-					 mode->frame_length - mode->height, 1,
+					 ov32d40_vblank_max(mode), 1,
 					 mode->frame_length - mode->height);
 
 		exposure_max = mode->sensor_frame_length -
@@ -1474,6 +1492,22 @@ static int ov32d40_set_ctrl(struct v4l2_ctrl *ctrl)
 		return 0;
 
 	switch (ctrl->id) {
+	case V4L2_CID_VBLANK: {
+		u32 vts = ov32d40_vblank_to_vts(ov32d40->cur_mode, ctrl->val);
+
+		ret = cci_write(ov32d40->regmap, OV32D40_REG_VTS, vts, NULL);
+		if (ret)
+			break;
+
+		__v4l2_ctrl_modify_range(ov32d40->exposure,
+					 ov32d40->exposure->minimum,
+					 vts - OV32D40_EXPOSURE_MAX_MARGIN,
+					 ov32d40->exposure->step,
+					 min_t(s32,
+					       ov32d40->exposure->default_value,
+					       vts - OV32D40_EXPOSURE_MAX_MARGIN));
+		break;
+	}
 	case V4L2_CID_EXPOSURE:
 		ret = cci_write(ov32d40->regmap, OV32D40_REG_EXPO, ctrl->val, NULL);
 		break;
@@ -1561,8 +1595,9 @@ static int ov32d40_initialize_controls(struct ov32d40 *ov32d40)
 					    blank, blank, 1, blank);
 
 	blank = mode->frame_length - mode->height;
-	ov32d40->vblank = v4l2_ctrl_new_std(handler, NULL, V4L2_CID_VBLANK,
-					    blank, blank, 1, blank);
+	ov32d40->vblank = v4l2_ctrl_new_std(handler, &ov32d40_ctrl_ops,
+					    V4L2_CID_VBLANK, blank,
+					    ov32d40_vblank_max(mode), 1, blank);
 
 	exposure_max = mode->sensor_frame_length -
 		       OV32D40_EXPOSURE_MAX_MARGIN;
