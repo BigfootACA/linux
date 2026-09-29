@@ -3,6 +3,8 @@
  * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
+#include <linux/acpi.h>
+#include <linux/ctype.h>
 #include <linux/debugfs.h>
 #include <linux/io.h>
 #include <linux/module.h>
@@ -300,11 +302,43 @@ static const struct of_device_id qcom_ubwc_configs[] __maybe_unused = {
 	{ }
 };
 
+static const struct qcom_ubwc_cfg_data *qcom_ubwc_acpi_get_data(void)
+{
+	struct acpi_table_header *fadt;
+	const struct of_device_id *id;
+	char machine[ACPI_OEM_ID_SIZE + 1 + ACPI_OEM_TABLE_ID_SIZE + 1];
+	const struct qcom_ubwc_cfg_data *data = NULL;
+	int i, n = 0;
+
+	if (acpi_disabled)
+		return NULL;
+
+	if (ACPI_FAILURE(acpi_get_table(ACPI_SIG_FADT, 0, &fadt)))
+		return NULL;
+
+	for (i = 0; i < ACPI_OEM_ID_SIZE && fadt->oem_id[i] != ' '; i++)
+		machine[n++] = tolower(fadt->oem_id[i]);
+	machine[n++] = ',';
+	for (i = 0; i < ACPI_OEM_TABLE_ID_SIZE && fadt->oem_table_id[i] != ' '; i++)
+		machine[n++] = tolower(fadt->oem_table_id[i]);
+	machine[n] = '\0';
+
+	for (id = qcom_ubwc_configs; id->compatible[0]; id++)
+		if (!strcmp(id->compatible, machine))
+			data = id->data;
+
+	acpi_put_table(fadt);
+
+	return data;
+}
+
 const struct qcom_ubwc_cfg_data *qcom_ubwc_config_get_data(void)
 {
 	const struct qcom_ubwc_cfg_data *data;
 
 	data = of_machine_get_match_data(qcom_ubwc_configs);
+	if (!data)
+		data = qcom_ubwc_acpi_get_data();
 	if (!data) {
 		pr_err("Couldn't find UBWC config data for this platform!\n");
 		return ERR_PTR(-EINVAL);
