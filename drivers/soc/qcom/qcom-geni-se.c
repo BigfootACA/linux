@@ -1406,6 +1406,10 @@ static int geni_se_probe(struct platform_device *pdev)
 
 	dev_set_drvdata(dev, wrapper);
 	dev_dbg(dev, "GENI SE Driver probed\n");
+
+	if (has_acpi_companion(dev))
+		return 0;
+
 	return devm_of_platform_populate(dev);
 }
 
