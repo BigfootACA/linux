@@ -7,6 +7,7 @@
 /* Disable MMIO tracing to prevent excessive logging of unwanted MMIO traces */
 #define __DISABLE_TRACE_MMIO__
 
+#include <linux/acpi.h>
 #include <linux/clk.h>
 #include <linux/console.h>
 #include <linux/io.h>
@@ -77,6 +78,7 @@
 #define UART_PARAM_RFR_OPEN		BIT(7)
 
 #define UART_OVERSAMPLING		32
+#define GENI_UART_SOURCE_CLK_HZ		7372800
 #define STALE_TIMEOUT			16
 #define DEFAULT_BITS_PER_CHAR		10
 #define GENI_UART_CONS_PORTS		1
@@ -1271,6 +1273,12 @@ static int geni_serial_set_rate(struct uart_port *uport, unsigned int baud)
 	u32 ser_clk_cfg;
 	int ret;
 
+	if (has_acpi_companion(uport->dev)) {
+		uport->uartclk = GENI_UART_SOURCE_CLK_HZ;
+		port->clk_rate = GENI_UART_SOURCE_CLK_HZ;
+		return 0;
+	}
+
 	sampling_rate = UART_OVERSAMPLING;
 	/* Sampling rate is halved for IP versions >= 2.5 */
 	ver = geni_se_get_qup_hw_version(&port->se);
@@ -1670,6 +1678,9 @@ static int geni_serial_resources_off(struct uart_port *uport)
 
 static int geni_serial_resource_state(struct uart_port *uport, bool power_on)
 {
+	if (has_acpi_companion(uport->dev))
+		return 0;
+
 	return power_on ? geni_serial_resources_on(uport) : geni_serial_resources_off(uport);
 }
 
@@ -1809,7 +1820,7 @@ static int qcom_geni_serial_probe(struct platform_device *pdev)
 	struct uart_driver *drv;
 	const struct qcom_geni_device_data *data;
 
-	data = of_device_get_match_data(&pdev->dev);
+	data = device_get_match_data(&pdev->dev);
 	if (!data)
 		return -EINVAL;
 
@@ -1822,6 +1833,9 @@ static int qcom_geni_serial_probe(struct platform_device *pdev)
 		if (line == -ENODEV) /* compat with non-standard aliases */
 			line = of_alias_get_id(pdev->dev.of_node, "hsuart");
 	}
+
+	if (line < 0 && has_acpi_companion(&pdev->dev))
+		line = 0;
 
 	port = get_port_from_line(line, data->console, &pdev->dev);
 	if (IS_ERR(port)) {
@@ -1838,10 +1852,14 @@ static int qcom_geni_serial_probe(struct platform_device *pdev)
 	port->dev_data = data;
 	port->se.dev = &pdev->dev;
 	port->se.wrapper = dev_get_drvdata(pdev->dev.parent);
+	if (!port->se.wrapper && pdev->dev.parent)
+		return -EPROBE_DEFER;
 
-	ret = port->dev_data->resources_init(uport);
-	if (ret)
-		return ret;
+	if (!has_acpi_companion(&pdev->dev)) {
+		ret = port->dev_data->resources_init(uport);
+		if (ret)
+			return ret;
+	}
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!res) {
