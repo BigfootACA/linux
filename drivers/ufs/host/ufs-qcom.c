@@ -178,7 +178,7 @@ static int ufs_qcom_ice_init(struct ufs_qcom_host *host)
 
 	ice = devm_of_qcom_ice_get(dev);
 	if (IS_ERR(ice)) {
-		if (ice != ERR_PTR(-EOPNOTSUPP))
+		if (ice != ERR_PTR(-EOPNOTSUPP) && ice != ERR_PTR(-ENODEV))
 			return PTR_ERR(ice);
 
 		dev_warn(dev, "Disabling inline encryption support\n");
@@ -508,6 +508,9 @@ static int ufs_qcom_power_up_sequence(struct ufs_hba *hba)
 	if (ret)
 		return ret;
 
+	if (!phy)
+		goto select_unipro_mode;
+
 	if (phy->power_count)
 		phy_power_off(phy);
 
@@ -538,6 +541,7 @@ static int ufs_qcom_power_up_sequence(struct ufs_hba *hba)
 		goto out_disable_phy;
 	}
 
+select_unipro_mode:
 	ufs_qcom_select_unipro_mode(host);
 
 	return 0;
@@ -1527,6 +1531,9 @@ static int ufs_qcom_icc_init(struct ufs_qcom_host *host)
 	struct device *dev = host->hba->dev;
 	int ret;
 
+	if (has_acpi_companion(dev))
+		return 0;
+
 	host->icc_ddr = devm_of_icc_get(dev, "ufs-ddr");
 	if (IS_ERR(host->icc_ddr))
 		return dev_err_probe(dev, PTR_ERR(host->icc_ddr),
@@ -1585,6 +1592,7 @@ static int ufs_qcom_init(struct ufs_hba *hba)
 	}
 
 	/* Fire up the reset controller. Failure here is non-fatal. */
+	host->rcdev.dev = dev;
 	host->rcdev.of_node = dev->of_node;
 	host->rcdev.ops = &ufs_qcom_reset_ops;
 	host->rcdev.owner = dev->driver->owner;
@@ -1826,6 +1834,9 @@ static int ufs_qcom_set_core_clk_ctrl(struct ufs_hba *hba, bool is_scale_up, uns
 	}
 
 set_core_clk_ctrl:
+	if (!cycles_in_1us)
+		cycles_in_1us = 150;
+
 	err = ufshcd_dme_get(hba,
 			    UIC_ARG_MIB(DME_VS_CORE_CLK_CTRL),
 			    &core_clk_ctrl_reg);
