@@ -466,8 +466,11 @@ struct icc_path *of_icc_get_by_index(struct device *dev, int idx)
 	struct of_phandle_args src_args, dst_args;
 	int ret;
 
-	if (!dev || !dev->of_node)
+	if (!dev)
 		return ERR_PTR(-ENODEV);
+
+	if (!dev->of_node)
+		return NULL;
 
 	np = dev->of_node;
 
@@ -559,8 +562,11 @@ struct icc_path *of_icc_get(struct device *dev, const char *name)
 	struct device_node *np;
 	int idx = 0;
 
-	if (!dev || !dev->of_node)
+	if (!dev)
 		return ERR_PTR(-ENODEV);
+
+	if (!dev->of_node)
+		return NULL;
 
 	np = dev->of_node;
 
