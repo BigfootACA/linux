@@ -1124,6 +1124,7 @@ properties:
           - enum:
               - qcom,sm8750-mtp
               - qcom,sm8750-qrd
+              - xiaomi,piano
           - const: qcom,sm8750
 
       - items:

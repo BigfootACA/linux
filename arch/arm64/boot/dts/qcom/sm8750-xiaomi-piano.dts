@@ -1,0 +1,2048 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Copyright (c) 2026 BigfootACA <bigfoot@classfun.cn>
+ */
+
+/dts-v1/;
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/input/input.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/leds/common.h>
+#include <dt-bindings/regulator/qcom,rpmh-regulator.h>
+
+#include "sm8750.dtsi"
+#include "pm8550.dtsi"
+#define PMK8550VE_SID 8
+#include "pm8550ve.dtsi"
+#include "pmih0108.dtsi"
+#include "pmk8550.dtsi"
+#include "sm8750-pmics.dtsi"
+
+/ {
+	compatible = "xiaomi,piano", "qcom,sm8750";
+	chassis-type = "tablet";
+	model = "Xiaomi Pad 8 Pro";
+
+	aliases {
+		/*
+		 * stdout-path names the framebuffer, and a name without a
+		 * leading slash is looked up here, so it needs an entry to
+		 * resolve to anything.
+		 */
+		framebuffer0 = &framebuffer0;
+		serial0 = &uart7;
+	};
+
+	chosen {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		stdout-path = "framebuffer0";
+
+		framebuffer0: framebuffer@fc800000 {
+			compatible = "simple-framebuffer";
+			reg = <0x0 0xfc800000 0x0 0x2b00000>;
+			clocks = <&gcc GCC_DISP_HF_AXI_CLK>,
+				 <&dispcc DISP_CC_MDSS_AHB_CLK>,
+				 <&dispcc DISP_CC_MDSS_MDP_CLK>,
+				 <&dispcc DISP_CC_MDSS_VSYNC_CLK>,
+				 <&dispcc DISP_CC_MDSS_BYTE0_CLK>,
+				 <&dispcc DISP_CC_MDSS_BYTE0_INTF_CLK>,
+				 <&dispcc DISP_CC_MDSS_PCLK0_CLK>,
+				 <&dispcc DISP_CC_MDSS_ESC0_CLK>,
+				 <&dispcc DISP_CC_ESYNC0_CLK>,
+				 <&dispcc DISP_CC_MDSS_BYTE1_CLK>,
+				 <&dispcc DISP_CC_MDSS_BYTE1_INTF_CLK>,
+				 <&dispcc DISP_CC_MDSS_PCLK1_CLK>,
+				 <&dispcc DISP_CC_MDSS_ESC1_CLK>,
+				 <&dispcc DISP_CC_ESYNC1_CLK>,
+				 <&dispcc DISP_CC_OSC_CLK>;
+			interconnects = <&mmss_noc MASTER_MDP QCOM_ICC_TAG_ALWAYS
+					 &mc_virt SLAVE_EBI1 QCOM_ICC_TAG_ALWAYS>;
+			interconnect-names = "mdp0-mem";
+			power-domains = <&rpmhpd RPMHPD_MMCX>;
+			required-opps = <&rpmhpd_opp_nom>;
+			width = <3200>;
+			height = <2136>;
+			stride = <(3200 * 4)>;
+			format = "a8r8g8b8";
+			panel = <&fb_panel>;
+
+			fb_panel: fb-panel {
+				width-mm = <239>;
+				height-mm = <159>;
+			};
+		};
+	};
+
+	clocks {
+		bi_tcxo_ao_div2: bi-tcxo-ao-div2-clk {
+			compatible = "fixed-factor-clock";
+			#clock-cells = <0>;
+			clock-div = <2>;
+			clock-mult = <1>;
+			clocks = <&rpmhcc RPMH_CXO_CLK_A>;
+		};
+
+		bi_tcxo_div2: bi-tcxo-div2-clk {
+			compatible = "fixed-factor-clock";
+			#clock-cells = <0>;
+			clock-div = <2>;
+			clock-mult = <1>;
+			clocks = <&rpmhcc RPMH_CXO_CLK>;
+		};
+
+		sleep_clk: sleep-clk {
+			compatible = "fixed-clock";
+			#clock-cells = <0>;
+			clock-frequency = <32000>;
+		};
+
+		xo_board: xo-board {
+			compatible = "fixed-clock";
+			#clock-cells = <0>;
+			clock-frequency = <76800000>;
+		};
+	};
+
+	gpio-keys {
+		compatible = "gpio-keys";
+		pinctrl-0 = <&volume_up_n>, <&hall_lid_n>;
+		pinctrl-names = "default";
+
+		key-volume-up {
+			debounce-interval = <15>;
+			gpios = <&pm8550_gpios 6 GPIO_ACTIVE_LOW>;
+			label = "Volume Up";
+			wakeup-source;
+			linux,can-disable;
+			linux,code = <KEY_VOLUMEUP>;
+		};
+
+		switch-lid {
+			debounce-interval = <15>;
+			gpios = <&tlmm 80 GPIO_ACTIVE_LOW>;
+			label = "Lid Hall Sensor";
+			wakeup-source;
+			linux,can-disable;
+			linux,input-type = <EV_SW>;
+			linux,code = <SW_LID>;
+		};
+	};
+
+
+	pmic-glink {
+		compatible = "xiaomi,mca-pmic-glink",
+			     "qcom,sm8750-pmic-glink",
+			     "qcom,sm8550-pmic-glink",
+			     "qcom,pmic-glink";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		orientation-gpios = <&tlmm 61 GPIO_ACTIVE_HIGH>;
+
+		connector@0 {
+			compatible = "usb-c-connector";
+			reg = <0>;
+			data-role = "dual";
+			power-role = "dual";
+
+			ports {
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				port@0 {
+					reg = <0>;
+
+					pmic_glink_hs_in: endpoint {
+						remote-endpoint = <&usb_dwc3_hs>;
+					};
+				};
+
+				port@1 {
+					reg = <1>;
+
+					pmic_glink_ss_in: endpoint {
+						remote-endpoint = <&usb_dp_qmpphy_out>;
+					};
+				};
+
+				port@2 {
+					reg = <2>;
+
+					pmic_glink_sbu: endpoint {
+						remote-endpoint = <&fsa4480_sbu_mux>;
+					};
+				};
+			};
+		};
+	};
+
+	camera_rear_avdd: regulator-camera-rear-avdd {
+		compatible = "regulator-fixed";
+		enable-active-high;
+		gpio = <&tlmm 175 GPIO_ACTIVE_HIGH>;
+		pinctrl-0 = <&camera_rear_avdd_en>;
+		pinctrl-names = "default";
+		regulator-name = "camera_rear_avdd";
+		regulator-min-microvolt = <2800000>;
+		regulator-max-microvolt = <2800000>;
+		startup-delay-us = <100>;
+	};
+
+	camera_front_avdd: regulator-camera-front-avdd {
+		compatible = "regulator-fixed";
+		enable-active-high;
+		gpio = <&tlmm 176 GPIO_ACTIVE_HIGH>;
+		pinctrl-0 = <&camera_front_avdd_en>;
+		pinctrl-names = "default";
+		regulator-name = "camera_front_avdd";
+		regulator-min-microvolt = <2800000>;
+		regulator-max-microvolt = <2800000>;
+		startup-delay-us = <100>;
+	};
+
+	/*
+	 * The panel AVDD (+5.8V) and AVEE (-5.8V) rails are generated by the
+	 * KTZ8866 LCD bias block and gated by dedicated ENP/ENN pins.
+	 */
+	display_panel_vsn: regulator-panel-vsn {
+		compatible = "regulator-fixed";
+		enable-active-high;
+		gpio = <&tlmm 118 GPIO_ACTIVE_HIGH>;
+		pinctrl-0 = <&panel_vsn_en>;
+		pinctrl-names = "default";
+		regulator-boot-on;
+		regulator-max-microvolt = <5800000>;
+		regulator-min-microvolt = <5800000>;
+		regulator-name = "display_panel_vsn";
+		startup-delay-us = <233>;
+	};
+
+	display_panel_vsp: regulator-panel-vsp {
+		compatible = "regulator-fixed";
+		enable-active-high;
+		gpio = <&tlmm 117 GPIO_ACTIVE_HIGH>;
+		pinctrl-0 = <&panel_vsp_en>;
+		pinctrl-names = "default";
+		regulator-boot-on;
+		regulator-max-microvolt = <5800000>;
+		regulator-min-microvolt = <5800000>;
+		regulator-name = "display_panel_vsp";
+		startup-delay-us = <233>;
+	};
+
+	touch_avdd: regulator-touch-avdd {
+		compatible = "regulator-fixed";
+		enable-active-high;
+		gpio = <&tlmm 114 GPIO_ACTIVE_HIGH>;
+		pinctrl-0 = <&touch_avdd_en>;
+		pinctrl-names = "default";
+		regulator-boot-on;
+		regulator-name = "touch_avdd";
+	};
+
+	/*
+	 * SM8750 has no cooling devices in mainline yet, so the board NTCs are
+	 * exposed through hwmon rather than as thermal zones.
+	 */
+	pmic-temperatures {
+		compatible = "iio-hwmon";
+		io-channels = <&pmk8550_vadc 0x044>, <&pmk8550_vadc 0x144>,
+			      <&pmk8550_vadc 0x145>, <&pmk8550_vadc 0x146>,
+			      <&pmk8550_vadc 0x149>, <&pmk8550_vadc 0x14a>,
+			      <&pmk8550_vadc 0x14b>, <&pmk8550_vadc 0x744>,
+			      <&pmk8550_vadc 0x747>, <&pmk8550_vadc 0x74a>,
+			      <&pmk8550_vadc 0x74d>;
+	};
+
+	qsee-log {
+		compatible = "qcom,qsee-log";
+	};
+
+	reserved-memory {
+		/*
+		 * Where the Secure Execution Environment keeps the
+		 * applications it is asked to load. It takes the region over
+		 * for itself, so it must not stay in the linear map.
+		 */
+		qseecom_ta_mem: qseecom-ta {
+			alignment = <0 0x100000>;
+			alloc-ranges = <0 0x80000000 0 0x40000000>;
+			no-map;
+			size = <0 0x3800000>;
+		};
+
+		/*
+		 * The bootloader will only keep display hardware enabled
+		 * if this memory region is named exactly 'splash_region'
+		 */
+		splash_region: splash_region {
+			label = "cont_splash_region";
+			reg = <0 0xfc800000 0 0x2b00000>;
+			iommu-addresses = <&mdss 0 0xfc800000 0 0x2b00000>;
+			no-map;
+		};
+
+		ramoops: ramoops@a3500000 {
+			compatible = "ramoops";
+			reg = <0 0xa3500000 0 0x400000>;
+			console-size = <0x200000>;
+			pmsg-size = <0x100000>;
+			record-size = <0x20000>;
+		};
+	};
+
+	sound {
+		compatible = "qcom,sm8750-sndcard", "qcom,sm8450-sndcard";
+
+		pinctrl-0 = <&mi2s1_active>;
+		pinctrl-names = "default";
+
+		audio-routing = "VA DMIC0", "vdd-micb",
+				"VA DMIC1", "vdd-micb",
+				"VA DMIC2", "vdd-micb",
+				"VA DMIC3", "vdd-micb",
+				"VA DMIC4", "vdd-micb",
+				"VA DMIC5", "vdd-micb",
+				"VA DMIC6", "vdd-micb",
+				"VA DMIC7", "vdd-micb";
+
+		model = "xiaomi-piano";
+
+		speaker-dai-link {
+			link-name = "Speaker Playback";
+
+			codec {
+				sound-dai = <&spk_tl>, <&spk_tr>,
+					    <&spk_bl>, <&spk_br>;
+			};
+
+			cpu {
+				sound-dai = <&q6apmbedai SECONDARY_MI2S_RX>;
+			};
+
+			platform {
+				sound-dai = <&q6apm>;
+			};
+		};
+
+		va-dai-link {
+			link-name = "VA Capture";
+
+			codec {
+				sound-dai = <&lpass_vamacro 0>;
+			};
+
+			cpu {
+				sound-dai = <&q6apmbedai VA_CODEC_DMA_TX_0>;
+			};
+
+			platform {
+				sound-dai = <&q6apm>;
+			};
+		};
+	};
+
+	vph_pwr: vph-pwr-regulator {
+		compatible = "regulator-fixed";
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-max-microvolt = <3700000>;
+		regulator-min-microvolt = <3700000>;
+		regulator-name = "vph_pwr";
+	};
+
+	wcn7860-pmu {
+		compatible = "qcom,wcn7860-pmu";
+		bt-enable-gpios = <&pm8550ve_f_gpios 3 GPIO_ACTIVE_HIGH>;
+		clocks = <&rpmhcc RPMH_RF_CLK1>;
+		pinctrl-0 = <&wlan_en>, <&bt_default>;
+		pinctrl-names = "default";
+		vddaon-supply = <&vreg_s4d_0p85>;
+		vdddig-supply = <&vreg_s5f_0p85>;
+		vddio-supply = <&vreg_l3f_1p8>;
+		vddio1p2-supply = <&vreg_l2f_1p2>;
+		vddrfa1p2-supply = <&vreg_s7i_1p2>;
+		vddrfa1p8-supply = <&vreg_s3g_1p8>;
+		wlan-enable-gpios = <&tlmm 16 GPIO_ACTIVE_HIGH>;
+
+		regulators {
+			vreg_pmu_rfa_cmn: ldo0 {
+				regulator-name = "vreg_pmu_rfa_cmn";
+			};
+
+			vreg_pmu_aon_0p59: ldo1 {
+				regulator-name = "vreg_pmu_aon_0p59";
+			};
+
+			vreg_pmu_wlcx_0p8: ldo2 {
+				regulator-name = "vreg_pmu_wlcx_0p8";
+			};
+
+			vreg_pmu_wlmx_0p85: ldo3 {
+				regulator-name = "vreg_pmu_wlmx_0p85";
+			};
+
+			vreg_pmu_btcmx_0p85: ldo4 {
+				regulator-name = "vreg_pmu_btcmx_0p85";
+			};
+
+			vreg_pmu_rfa_0p8: ldo5 {
+				regulator-name = "vreg_pmu_rfa_0p8";
+			};
+
+			vreg_pmu_rfa_1p2: ldo6 {
+				regulator-name = "vreg_pmu_rfa_1p2";
+			};
+
+			vreg_pmu_rfa_1p8: ldo7 {
+				regulator-name = "vreg_pmu_rfa_1p8";
+			};
+
+			vreg_pmu_pcie_0p9: ldo8 {
+				regulator-name = "vreg_pmu_pcie_0p9";
+			};
+
+			vreg_pmu_pcie_1p8: ldo9 {
+				regulator-name = "vreg_pmu_pcie_1p8";
+			};
+		};
+	};
+};
+
+&apps_rsc {
+	regulators-0 {
+		compatible = "qcom,pm8550-rpmh-regulators";
+
+		vdd-bob1-supply = <&vph_pwr>;
+		vdd-bob2-supply = <&vph_pwr>;
+		vdd-l1-l4-l10-supply = <&vreg_s3g_1p8>;
+		vdd-l2-l13-l14-supply = <&vreg_bob1>;
+		vdd-l3-supply = <&vreg_s7i_1p2>;
+		vdd-l5-l16-supply = <&vreg_bob1>;
+		vdd-l6-l7-supply = <&vreg_bob1>;
+		vdd-l8-l9-supply = <&vreg_bob1>;
+		vdd-l11-supply = <&vreg_s7i_1p2>;
+		vdd-l12-supply = <&vreg_s3g_1p8>;
+		vdd-l15-supply = <&vreg_s3g_1p8>;
+		vdd-l17-supply = <&vreg_bob2>;
+
+		qcom,pmic-id = "b";
+
+		/*
+		 * The 3.3V LDOs hanging off this boost (ldo9, ldo14) ask for
+		 * 3304mV, so it has to be voted above that.  3296000 lands on
+		 * the 3320mV step and matches every other pm8550 board; the
+		 * 3008000 that the sm8750 MTP/QRD use would regulate down to
+		 * 3032mV and leave those LDOs in permanent dropout.
+		 */
+		vreg_bob1: bob1 {
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-max-microvolt = <4000000>;
+			regulator-min-microvolt = <3296000>;
+			regulator-name = "vreg_bob1";
+		};
+
+		vreg_bob2: bob2 {
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-max-microvolt = <3008000>;
+			regulator-min-microvolt = <2704000>;
+			regulator-name = "vreg_bob2";
+		};
+
+		vreg_l1b_1p8: ldo1 {
+			regulator-allow-set-load;
+			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+						   RPMH_REGULATOR_MODE_HPM>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-max-microvolt = <1800000>;
+			regulator-min-microvolt = <1800000>;
+			regulator-name = "vreg_l1b_1p8";
+		};
+
+		vreg_l2b_3p0: ldo2 {
+			regulator-allow-set-load;
+			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+						   RPMH_REGULATOR_MODE_HPM>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-max-microvolt = <3048000>;
+			regulator-min-microvolt = <3008000>;
+			regulator-name = "vreg_l2b_3p0";
+		};
+
+		vreg_l4b_1p8: ldo4 {
+			regulator-allow-set-load;
+			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+						   RPMH_REGULATOR_MODE_HPM>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-max-microvolt = <1800000>;
+			regulator-min-microvolt = <1800000>;
+			regulator-name = "vreg_l4b_1p8";
+		};
+
+		vreg_l5b_3p1: ldo5 {
+			regulator-allow-set-load;
+			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+						   RPMH_REGULATOR_MODE_HPM>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-max-microvolt = <3148000>;
+			regulator-min-microvolt = <3100000>;
+			regulator-name = "vreg_l5b_3p1";
+		};
+
+		vreg_l6b_1p8: ldo6 {
+			regulator-allow-set-load;
+			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+						   RPMH_REGULATOR_MODE_HPM>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-max-microvolt = <1800000>;
+			regulator-min-microvolt = <1800000>;
+			regulator-name = "vreg_l6b_1p8";
+		};
+
+		vreg_l7b_1p8: ldo7 {
+			regulator-allow-set-load;
+			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+						   RPMH_REGULATOR_MODE_HPM>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-max-microvolt = <3008000>;
+			regulator-min-microvolt = <1800000>;
+			regulator-name = "vreg_l7b_1p8";
+		};
+
+		vreg_l8b_1p8: ldo8 {
+			regulator-allow-set-load;
+			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+						   RPMH_REGULATOR_MODE_HPM>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-max-microvolt = <3008000>;
+			regulator-min-microvolt = <1800000>;
+			regulator-name = "vreg_l8b_1p8";
+		};
+
+		vreg_l9b_3p3: ldo9 {
+			regulator-allow-set-load;
+			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+						   RPMH_REGULATOR_MODE_HPM>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-max-microvolt = <3200000>;
+			regulator-min-microvolt = <3200000>;
+			regulator-name = "vreg_l9b_3p3";
+		};
+
+		vreg_l10b_1p8: ldo10 {
+			regulator-allow-set-load;
+			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+						   RPMH_REGULATOR_MODE_HPM>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-max-microvolt = <1800000>;
+			regulator-min-microvolt = <1800000>;
+			regulator-name = "vreg_l10b_1p8";
+		};
+
+		/*
+		 * 1.8V, not the 1.0V the reference designs use: this board
+		 * feeds ldo11 from a rail that can support it and runs the
+		 * keyboard MCU core off it.
+		 *
+		 * No dynamic load scaling either.  Nothing else votes for this
+		 * rail, so the first consumer to enable it decides its mode,
+		 * and a drms vote of 0uA parks it in LPM -- which collapses
+		 * the rail and makes TrustZone raise a fatal error.  The
+		 * vendor kernel keeps it pinned to HPM; so do we.
+		 */
+		vreg_l11b_1p8: ldo11 {
+			regulator-always-on;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-max-microvolt = <1800000>;
+			regulator-min-microvolt = <1800000>;
+			regulator-name = "vreg_l11b_1p8";
+		};
+
+		vreg_l12b_1p8: ldo12 {
+			regulator-allow-set-load;
+			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+						   RPMH_REGULATOR_MODE_HPM>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-max-microvolt = <1800000>;
+			regulator-min-microvolt = <1800000>;
+			regulator-name = "vreg_l12b_1p8";
+		};
+
+		vreg_l13b_3p0: ldo13 {
+			regulator-allow-set-load;
+			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+						   RPMH_REGULATOR_MODE_HPM>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-max-microvolt = <3000000>;
+			regulator-min-microvolt = <3000000>;
+			regulator-name = "vreg_l13b_3p0";
+		};
+
+		vreg_l14b_3p3: ldo14 {
+			regulator-allow-set-load;
+			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+						   RPMH_REGULATOR_MODE_HPM>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-max-microvolt = <3200000>;
+			regulator-min-microvolt = <3200000>;
+			regulator-name = "vreg_l14b_3p3";
+		};
+
+		vreg_l15b_1p8: ldo15 {
+			regulator-allow-set-load;
+			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+						   RPMH_REGULATOR_MODE_HPM>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-max-microvolt = <1800000>;
+			regulator-min-microvolt = <1800000>;
+			regulator-name = "vreg_l15b_1p8";
+		};
+
+		vreg_l16b_2p8: ldo16 {
+			regulator-allow-set-load;
+			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+						   RPMH_REGULATOR_MODE_HPM>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-max-microvolt = <2800000>;
+			regulator-min-microvolt = <2800000>;
+			regulator-name = "vreg_l16b_2p8";
+		};
+
+		vreg_l17b_2p5: ldo17 {
+			regulator-allow-set-load;
+			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+						   RPMH_REGULATOR_MODE_HPM>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-max-microvolt = <2504000>;
+			regulator-min-microvolt = <2504000>;
+			regulator-name = "vreg_l17b_2p5";
+		};
+	};
+
+	regulators-1 {
+		compatible = "qcom,pm8550ve-rpmh-regulators";
+
+		vdd-l1-supply = <&vreg_s7i_1p2>;
+		vdd-l2-supply = <&vreg_s1d_0p97>;
+		vdd-l3-supply = <&vreg_s1d_0p97>;
+		vdd-s1-supply = <&vph_pwr>;
+		vdd-s3-supply = <&vph_pwr>;
+		vdd-s4-supply = <&vph_pwr>;
+
+		qcom,pmic-id = "d";
+
+		vreg_s1d_0p97: smps1 {
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-max-microvolt = <1100000>;
+			regulator-min-microvolt = <880000>;
+			regulator-name = "vreg_s1d_0p97";
+		};
+
+		vreg_s3d_1p2: smps3 {
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-max-microvolt = <1300000>;
+			regulator-min-microvolt = <1200000>;
+			regulator-name = "vreg_s3d_1p2";
+		};
+
+		vreg_s4d_0p85: smps4 {
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-max-microvolt = <1036000>;
+			regulator-min-microvolt = <852000>;
+			regulator-name = "vreg_s4d_0p85";
+		};
+
+		vreg_l1d_1p2: ldo1 {
+			regulator-allow-set-load;
+			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+						   RPMH_REGULATOR_MODE_HPM>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-max-microvolt = <1200000>;
+			regulator-min-microvolt = <1200000>;
+			regulator-name = "vreg_l1d_1p2";
+		};
+
+		vreg_l2d_0p88: ldo2 {
+			regulator-allow-set-load;
+			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+						   RPMH_REGULATOR_MODE_HPM>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-max-microvolt = <912000>;
+			regulator-min-microvolt = <880000>;
+			regulator-name = "vreg_l2d_0p88";
+		};
+
+		vreg_l3d_0p88: ldo3 {
+			regulator-allow-set-load;
+			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+						   RPMH_REGULATOR_MODE_HPM>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-max-microvolt = <920000>;
+			regulator-min-microvolt = <880000>;
+			regulator-name = "vreg_l3d_0p88";
+		};
+	};
+
+	regulators-2 {
+		compatible = "qcom,pm8550ve-rpmh-regulators";
+
+		vdd-l1-supply = <&vreg_s1d_0p97>;
+		vdd-l2-supply = <&vreg_s7i_1p2>;
+		vdd-l3-supply = <&vreg_s3g_1p8>;
+		vdd-s5-supply = <&vph_pwr>;
+
+		qcom,pmic-id = "f";
+
+		vreg_s5f_0p85: smps5 {
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-max-microvolt = <1000000>;
+			regulator-min-microvolt = <852000>;
+			regulator-name = "vreg_s5f_0p85";
+		};
+
+		vreg_l1f_0p88: ldo1 {
+			regulator-allow-set-load;
+			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+						   RPMH_REGULATOR_MODE_HPM>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-max-microvolt = <920000>;
+			regulator-min-microvolt = <880000>;
+			regulator-name = "vreg_l1f_0p88";
+		};
+
+		vreg_l2f_1p2: ldo2 {
+			regulator-allow-set-load;
+			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+						   RPMH_REGULATOR_MODE_HPM>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-max-microvolt = <1200000>;
+			regulator-min-microvolt = <1200000>;
+			regulator-name = "vreg_l2f_1p2";
+		};
+
+		vreg_l3f_1p8: ldo3 {
+			regulator-allow-set-load;
+			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+						   RPMH_REGULATOR_MODE_HPM>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-max-microvolt = <1800000>;
+			regulator-min-microvolt = <1800000>;
+			regulator-name = "vreg_l3f_1p8";
+		};
+	};
+
+	regulators-3 {
+		compatible = "qcom,pm8550ve-rpmh-regulators";
+
+		vdd-l1-supply = <&vreg_s1d_0p97>;
+		vdd-l2-supply = <&vreg_s3g_1p8>;
+		vdd-l3-supply = <&vreg_s7i_1p2>;
+		vdd-s1-supply = <&vph_pwr>;
+		vdd-s3-supply = <&vph_pwr>;
+
+		qcom,pmic-id = "g";
+
+		vreg_s1g_0p5: smps1 {
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-max-microvolt = <700000>;
+			regulator-min-microvolt = <300000>;
+			regulator-name = "vreg_s1g_0p5";
+		};
+
+		vreg_s3g_1p8: smps3 {
+			regulator-allow-set-load;
+			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+						   RPMH_REGULATOR_MODE_HPM>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_LPM>;
+			regulator-max-microvolt = <2000000>;
+			regulator-min-microvolt = <1856000>;
+			regulator-name = "vreg_s3g_1p8";
+		};
+
+		vreg_s4g_0p75: smps4 {
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-max-microvolt = <900000>;
+			regulator-min-microvolt = <300000>;
+			regulator-name = "vreg_s4g_0p75";
+		};
+
+		vreg_l1g_0p91: ldo1 {
+			regulator-allow-set-load;
+			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+						   RPMH_REGULATOR_MODE_HPM>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-max-microvolt = <936000>;
+			regulator-min-microvolt = <912000>;
+			regulator-name = "vreg_l1g_0p91";
+		};
+
+		vreg_l2g_1p2: ldo2 {
+			regulator-allow-set-load;
+			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+						   RPMH_REGULATOR_MODE_HPM>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-max-microvolt = <1200000>;
+			regulator-min-microvolt = <1200000>;
+			regulator-name = "vreg_l2g_1p2";
+		};
+
+		vreg_l3g_1p2: ldo3 {
+			regulator-allow-set-load;
+			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+						   RPMH_REGULATOR_MODE_HPM>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-max-microvolt = <1256000>;
+			regulator-min-microvolt = <1200000>;
+			regulator-name = "vreg_l3g_1p2";
+		};
+	};
+
+	regulators-4 {
+		compatible = "qcom,pm8550ve-rpmh-regulators";
+
+		vdd-l1-supply = <&vreg_s7i_1p2>;
+		vdd-l2-supply = <&vreg_s7i_1p2>;
+		vdd-l3-supply = <&vreg_s1d_0p97>;
+		vdd-s7-supply = <&vph_pwr>;
+		vdd-s8-supply = <&vph_pwr>;
+
+		qcom,pmic-id = "i";
+
+		vreg_s7i_1p2: smps7 {
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-max-microvolt = <1340000>;
+			regulator-min-microvolt = <1224000>;
+			regulator-name = "vreg_s7i_1p2";
+		};
+
+		vreg_s8i_0p9: smps8 {
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-max-microvolt = <972000>;
+			regulator-min-microvolt = <900000>;
+			regulator-name = "vreg_s8i_0p9";
+		};
+
+		vreg_l1i_1p2: ldo1 {
+			regulator-allow-set-load;
+			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+						   RPMH_REGULATOR_MODE_HPM>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-max-microvolt = <1200000>;
+			regulator-min-microvolt = <1200000>;
+			regulator-name = "vreg_l1i_1p2";
+		};
+
+		vreg_l2i_1p2: ldo2 {
+			regulator-allow-set-load;
+			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+						   RPMH_REGULATOR_MODE_HPM>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-max-microvolt = <1200000>;
+			regulator-min-microvolt = <1200000>;
+			regulator-name = "vreg_l2i_1p2";
+		};
+
+		vreg_l3i_0p88: ldo3 {
+			regulator-allow-set-load;
+			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+						   RPMH_REGULATOR_MODE_HPM>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-max-microvolt = <912000>;
+			regulator-min-microvolt = <880000>;
+			regulator-name = "vreg_l3i_0p88";
+		};
+	};
+
+	regulators-5 {
+		compatible = "qcom,pm8550vs-rpmh-regulators";
+
+		vdd-l1-supply = <&vreg_s1d_0p97>;
+		vdd-l2-supply = <&vreg_s7i_1p2>;
+		vdd-s2-supply = <&vph_pwr>;
+		vdd-s3-supply = <&vph_pwr>;
+		vdd-s4-supply = <&vph_pwr>;
+
+		qcom,pmic-id = "j";
+
+		vreg_s2j_1p1: smps2 {
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-max-microvolt = <1100000>;
+			regulator-min-microvolt = <1000000>;
+			regulator-name = "vreg_s2j_1p1";
+		};
+
+		vreg_s3j_1p1: smps3 {
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-max-microvolt = <1100000>;
+			regulator-min-microvolt = <1000000>;
+			regulator-name = "vreg_s3j_1p1";
+		};
+
+		vreg_l1j_0p91: ldo1 {
+			regulator-allow-set-load;
+			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+						   RPMH_REGULATOR_MODE_HPM>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-max-microvolt = <920000>;
+			regulator-min-microvolt = <880000>;
+			regulator-name = "vreg_l1j_0p91";
+		};
+
+		vreg_l2j_1p2: ldo2 {
+			regulator-allow-set-load;
+			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+						   RPMH_REGULATOR_MODE_HPM>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-max-microvolt = <1200000>;
+			regulator-min-microvolt = <1200000>;
+			regulator-name = "vreg_l2j_1p2";
+		};
+	};
+
+};
+
+&adspslpi_mem {
+	reg = <0 0xb8200000 0 0x5780000>;
+};
+
+&camss {
+	vdd-csiphy0-0p9-supply = <&vreg_l1f_0p88>;
+	vdd-csiphy0-1p2-supply = <&vreg_l3g_1p2>;
+	vdd-csiphy1-0p9-supply = <&vreg_l1f_0p88>;
+	vdd-csiphy1-1p2-supply = <&vreg_l3g_1p2>;
+	vdd-csiphy2-0p9-supply = <&vreg_l3i_0p88>;
+	vdd-csiphy2-1p2-supply = <&vreg_l3g_1p2>;
+	vdd-csiphy3-0p9-supply = <&vreg_l1f_0p88>;
+	vdd-csiphy3-1p2-supply = <&vreg_l3g_1p2>;
+	vdd-csiphy4-0p9-supply = <&vreg_l3i_0p88>;
+	vdd-csiphy4-1p2-supply = <&vreg_l3g_1p2>;
+	vdd-csiphy5-0p9-supply = <&vreg_l1f_0p88>;
+	vdd-csiphy5-1p2-supply = <&vreg_l3g_1p2>;
+
+	status = "okay";
+
+	ports {
+		port@1 {
+			camss_csiphy1_ep: endpoint {
+				data-lanes = <0 1 2 3>;
+				remote-endpoint = <&camera_rear_ep>;
+			};
+		};
+
+		port@4 {
+			camss_csiphy4_ep: endpoint {
+				data-lanes = <0 1 2 3>;
+				remote-endpoint = <&camera_front_ep>;
+			};
+		};
+	};
+};
+
+&cci0 {
+	pinctrl-0 = <&cci0_1_default>;
+	pinctrl-1 = <&cci0_1_sleep>;
+
+	status = "okay";
+};
+
+&cci0_i2c1 {
+	cam_rear_eeprom: eeprom@51 {
+		compatible = "atmel,24c128";
+		reg = <0x51>;
+		read-only;
+		vcc-supply = <&vreg_l6b_1p8>;
+		label = "camera-rear-calibration";
+	};
+
+	cam_rear_af: actuator@c {
+		compatible = "dongwoon,dw9807-vcm";
+		reg = <0x0c>;
+		VDD-supply = <&vreg_l7b_1p8>;
+	};
+
+	camera@10 {
+		compatible = "samsung,s5kjn1";
+		reg = <0x10>;
+
+		lens-focus = <&cam_rear_af>;
+		nvmem = <&cam_rear_eeprom>;
+		nvmem-names = "camera-calibration";
+
+		clocks = <&cambistmclkcc CAM_BIST_MCLK_CC_MCLK1_CLK>;
+		assigned-clocks = <&cambistmclkcc CAM_BIST_MCLK_CC_MCLK1_CLK>;
+		assigned-clock-rates = <24000000>;
+
+		pinctrl-0 = <&cam1_default>, <&camera_rear_reset>;
+		pinctrl-names = "default";
+		reset-gpios = <&tlmm 6 GPIO_ACTIVE_LOW>;
+
+		vdda-supply = <&camera_rear_avdd>;
+		vddd-supply = <&vreg_l1i_1p2>;
+		vddio-supply = <&vreg_l6b_1p8>;
+
+		orientation = <1>;
+		rotation = <180>;
+
+		port {
+			camera_rear_ep: endpoint {
+				data-lanes = <1 2 3 4>;
+				link-frequencies = /bits/ 64 <700000000>;
+				remote-endpoint = <&camss_csiphy1_ep>;
+			};
+		};
+	};
+};
+
+&i2c13 {
+	pinctrl-0 = <&qup_i2c13_data_clk>;
+	pinctrl-names = "default";
+	status = "okay";
+
+	wireless_charger: charger@38 {
+		compatible = "southchip,sc96231";
+		reg = <0x38>;
+		interrupt-parent = <&tlmm>;
+		interrupts = <78 IRQ_TYPE_EDGE_FALLING>;
+		reverse-txon-gpios = <&tlmm 14 GPIO_ACTIVE_HIGH>;
+		reverse-boost-gpios = <&tlmm 120 GPIO_ACTIVE_HIGH>;
+		pinctrl-0 = <&wireless_charger_int>;
+		pinctrl-names = "default";
+	};
+};
+
+&i2c9 {
+	pinctrl-0 = <&qup_i2c9_data_clk>;
+	pinctrl-names = "default";
+	status = "okay";
+
+	eeprom@51 {
+		compatible = "atmel,24c64";
+		reg = <0x51>;
+		read-only;
+		vcc-supply = <&vreg_l10b_1p8>;
+		label = "camera-front-calibration";
+	};
+
+	camera@10 {
+		compatible = "ovti,ov32d40";
+		reg = <0x10>;
+
+		clocks = <&cambistmclkcc CAM_BIST_MCLK_CC_MCLK4_CLK>;
+		assigned-clocks = <&cambistmclkcc CAM_BIST_MCLK_CC_MCLK4_CLK>;
+		assigned-clock-rates = <19200000>;
+
+		pinctrl-0 = <&cam4_default>, <&camera_front_reset>;
+		pinctrl-names = "default";
+		reset-gpios = <&tlmm 7 GPIO_ACTIVE_LOW>;
+
+		avdd-supply = <&camera_front_avdd>;
+		vddio-supply = <&vreg_l10b_1p8>;
+		vddd-supply = <&vreg_l2g_1p2>;
+
+		orientation = <0>;
+		rotation = <270>;
+
+		port {
+			camera_front_ep: endpoint {
+				data-lanes = <1 2 3 4>;
+				link-frequencies = /bits/ 64 <842400000>;
+				remote-endpoint = <&camss_csiphy4_ep>;
+			};
+		};
+	};
+};
+
+&gpu {
+	status = "okay";
+};
+
+&i2c3 {
+	status = "okay";
+
+	/*
+	 * Piano uses a discrete FSA4480 for the USB-C SBU/analog audio mux.
+	 * The WCD9395 USBSS block present on the SM8750 reference design is
+	 * left disabled on this board.
+	 */
+	typec-mux@42 {
+		compatible = "fcs,fsa4480";
+		reg = <0x42>;
+		mode-switch;
+		orientation-switch;
+		vcc-supply = <&vreg_bob1>;
+
+		port {
+			fsa4480_sbu_mux: endpoint {
+				remote-endpoint = <&pmic_glink_sbu>;
+			};
+		};
+	};
+};
+
+&i2c5 {
+	status = "okay";
+
+	/*
+	 * First half of the 1S2P pack. Each cell has its own gauge; the
+	 * SC8541 charge pump also sitting on this bus (at 0x6a, interrupt on
+	 * tlmm 68) answers register reads but has no mainline driver and no
+	 * public register map, so charging runs at the rate the PMIC firmware
+	 * negotiates on its own.
+	 */
+	fuel_gauge_master: fuel-gauge@55 {
+		compatible = "ti,bq27z561";
+		reg = <0x55>;
+	};
+
+	charge_pump: charger@6a {
+		compatible = "southchip,sc8541";
+		reg = <0x6a>;
+		interrupt-parent = <&tlmm>;
+		interrupts = <68 IRQ_TYPE_EDGE_FALLING>;
+		pinctrl-0 = <&charge_pump_int>;
+		pinctrl-names = "default";
+	};
+};
+
+&i2c6 {
+	clock-frequency = <1000000>;
+	status = "okay";
+
+	/*
+	 * Nanosic 803 MCU behind the magnetic pogo pins, carrying the
+	 * detachable keyboard and its Precision Touchpad.  The MCU runs
+	 * entirely out of RAM, so the driver has to push an image into it
+	 * after every reset.
+	 *
+	 * The MCU must never be let out of reset with only its 3.3V rail up:
+	 * running the I/O ring without the core rail drags the shared supply
+	 * down far enough to take UFS with it.
+	 */
+	keyboard@4c {
+		compatible = "nanosic,803";
+		reg = <0x4c>;
+
+		dvdd-supply = <&vreg_l11b_1p8>;
+		interrupts-extended = <&tlmm 97 IRQ_TYPE_EDGE_RISING>;
+		pinctrl-0 = <&kbd_default>;
+		pinctrl-names = "default";
+		reset-gpios = <&tlmm 188 GPIO_ACTIVE_LOW>;
+		sleep-gpios = <&tlmm 3 GPIO_ACTIVE_HIGH>;
+		vdd-supply = <&vreg_l14b_3p3>;
+		wakeup-gpios = <&tlmm 95 GPIO_ACTIVE_HIGH>;
+	};
+};
+
+&i2c8 {
+	status = "okay";
+
+	/*
+	 * Second KTZ8866, drives the remaining LED strings of the same panel.
+	 * It is slaved to the primary one so that both halves track a single
+	 * backlight device.
+	 */
+	backlight_follower: backlight@11 {
+		compatible = "kinetic,ktz8866";
+		reg = <0x11>;
+		current-num-sinks = <6>;
+		kinetic,current-ramp-delay-ms = <128>;
+		kinetic,follower-mode;
+		kinetic,led-enable-ramp-delay-ms = <1>;
+		vddneg-supply = <&display_panel_vsn>;
+		vddpos-supply = <&display_panel_vsp>;
+	};
+};
+
+&i2c10 {
+	status = "okay";
+
+	/*
+	 * Fudan Micro FM19511 NFC tag.  The vendor driver for this part is a
+	 * plain I2C passthrough character device - every bit of the protocol
+	 * lives in userspace - so there is nothing for an in-kernel driver to
+	 * do beyond forwarding the interrupt, and no mainline driver claims
+	 * the compatible.  Describe the part anyway and let userspace reach
+	 * it through i2c-dev until one exists.
+	 */
+	nfc-tag@57 {
+		compatible = "fm,fm19511";
+		reg = <0x57>;
+		interrupts-extended = <&tlmm 209 IRQ_TYPE_EDGE_FALLING>;
+		pinctrl-0 = <&nfc_tag_int>;
+		pinctrl-names = "default";
+	};
+};
+
+&i2c11 {
+	status = "okay";
+
+	/* Second half of the 1S2P pack */
+	fuel_gauge_slave: fuel-gauge@55 {
+		compatible = "ti,bq27z561";
+		reg = <0x55>;
+	};
+};
+
+&i2c_hub_3 {
+	status = "okay";
+
+	backlight_primary: backlight@11 {
+		compatible = "kinetic,ktz8866";
+		reg = <0x11>;
+		current-num-sinks = <6>;
+		enable-gpios = <&tlmm 2 GPIO_ACTIVE_HIGH>;
+		kinetic,current-ramp-delay-ms = <128>;
+		kinetic,enable-lcd-bias;
+		kinetic,follower = <&backlight_follower>;
+		kinetic,led-enable-ramp-delay-ms = <1>;
+		pinctrl-0 = <&backlight_hwen>;
+		pinctrl-names = "default";
+		vddneg-supply = <&display_panel_vsn>;
+		vddpos-supply = <&display_panel_vsp>;
+	};
+};
+
+&i2c_master_hub_0 {
+	status = "okay";
+};
+
+&i2c_hub_0 {
+	clock-frequency = <400000>;
+
+	status = "okay";
+
+	spk_tl: speaker@34 {
+		compatible = "foursemi,fs19xx";
+		reg = <0x34>;
+		#sound-dai-cells = <0>;
+		foursemi,i2s-channel = <1>;
+		pinctrl-0 = <&spk_tl_reset>;
+		pinctrl-names = "default";
+		reset-gpios = <&tlmm 128 GPIO_ACTIVE_LOW>;
+		sound-name-prefix = "SpkTopLeft";
+	};
+
+	spk_tr: speaker@35 {
+		compatible = "foursemi,fs19xx";
+		reg = <0x35>;
+		#sound-dai-cells = <0>;
+		foursemi,i2s-channel = <2>;
+		pinctrl-0 = <&spk_tr_reset>;
+		pinctrl-names = "default";
+		reset-gpios = <&tlmm 129 GPIO_ACTIVE_LOW>;
+		sound-name-prefix = "SpkTopRight";
+	};
+
+	spk_br: speaker@36 {
+		compatible = "foursemi,fs19xx";
+		reg = <0x36>;
+		#sound-dai-cells = <0>;
+		foursemi,i2s-channel = <2>;
+		pinctrl-0 = <&spk_br_reset>;
+		pinctrl-names = "default";
+		reset-gpios = <&tlmm 107 GPIO_ACTIVE_LOW>;
+		sound-name-prefix = "SpkBottomRight";
+	};
+
+	spk_bl: speaker@37 {
+		compatible = "foursemi,fs19xx";
+		reg = <0x37>;
+		#sound-dai-cells = <0>;
+		foursemi,i2s-channel = <1>;
+		pinctrl-0 = <&spk_bl_reset>;
+		pinctrl-names = "default";
+		reset-gpios = <&tlmm 108 GPIO_ACTIVE_LOW>;
+		sound-name-prefix = "SpkBottomLeft";
+	};
+};
+
+&iris {
+	status = "okay";
+};
+
+&lpass_vamacro {
+	pinctrl-0 = <&dmic01_default>, <&dmic23_default>,
+		    <&dmic45_default>, <&dmic67_default>;
+	pinctrl-names = "default";
+	vdd-micb-supply = <&vreg_l1b_1p8>;
+	qcom,dmic-sample-rate = <4800000>;
+};
+
+/*
+ * The board has no SoundWire speaker amplifiers, so neither WSA macro has
+ * anything to drive. Android describes the same three macros.
+ */
+&lpass_wsa2macro {
+	status = "disabled";
+};
+
+&lpass_wsamacro {
+	status = "disabled";
+};
+
+&mdss {
+	memory-region = <&splash_region>;
+
+	status = "okay";
+};
+
+&mdss_mdp {
+	status = "okay";
+};
+
+&mdss_dsi0 {
+	qcom,dual-dsi-mode;
+	qcom,sync-dual-dsi;
+	qcom,master-dsi;
+	vdda-supply = <&vreg_l3g_1p2>;
+
+	status = "okay";
+
+	panel0: panel@0 {
+		compatible = "xiaomi,p81-boe", "novatek,nt36532";
+		reg = <0>;
+		backlight = <&backlight_primary>;
+		/* Strap that tells the BOE and CSOT modules apart */
+		lcd-id-gpios = <&tlmm 100 GPIO_ACTIVE_HIGH>;
+		pinctrl-0 = <&panel_reset_n>, <&panel_lcd_id>, <&mdp_vsync>;
+		pinctrl-names = "default";
+		reset-gpios = <&tlmm 98 GPIO_ACTIVE_LOW>;
+		vddi-supply = <&vreg_l12b_1p8>;
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+
+				panel0_in: endpoint {
+					remote-endpoint = <&mdss_dsi0_out>;
+				};
+			};
+
+			port@1 {
+				reg = <1>;
+
+				panel1_in: endpoint {
+					remote-endpoint = <&mdss_dsi1_out>;
+				};
+			};
+		};
+	};
+};
+
+&mdss_dsi0_out {
+	remote-endpoint = <&panel0_in>;
+	data-lanes = <0 1 2 3>;
+};
+
+&mdss_dsi0_phy {
+	vdds-supply = <&vreg_l3i_0p88>;
+
+	status = "okay";
+};
+
+&mdss_dsi1 {
+	/*
+	 * The SM8750 DSI host reparents byte_src/pixel_src to the PLL listed in
+	 * its own clocks property at runtime, so assigned-clock-parents cannot
+	 * be used to point the slave link at the master PHY PLL.
+	 */
+	clocks = <&dispcc DISP_CC_MDSS_BYTE1_CLK>,
+		 <&dispcc DISP_CC_MDSS_BYTE1_INTF_CLK>,
+		 <&dispcc DISP_CC_MDSS_PCLK1_CLK>,
+		 <&dispcc DISP_CC_MDSS_ESC1_CLK>,
+		 <&dispcc DISP_CC_MDSS_AHB_CLK>,
+		 <&gcc GCC_DISP_HF_AXI_CLK>,
+		 <&mdss_dsi0_phy DSI_PIXEL_PLL_CLK>,
+		 <&mdss_dsi0_phy DSI_BYTE_PLL_CLK>,
+		 <&dispcc DISP_CC_ESYNC1_CLK>,
+		 <&dispcc DISP_CC_OSC_CLK>,
+		 <&dispcc DISP_CC_MDSS_BYTE1_CLK_SRC>,
+		 <&dispcc DISP_CC_MDSS_PCLK1_CLK_SRC>;
+
+	qcom,dual-dsi-mode;
+	qcom,sync-dual-dsi;
+	vdda-supply = <&vreg_l3g_1p2>;
+
+	status = "okay";
+};
+
+&mdss_dsi1_out {
+	remote-endpoint = <&panel1_in>;
+	data-lanes = <0 1 2 3>;
+};
+
+&mdss_dsi1_phy {
+	vdds-supply = <&vreg_l3i_0p88>;
+
+	status = "okay";
+};
+
+&mdss_dp0 {
+	status = "okay";
+};
+
+&mdss_dp0_out {
+	link-frequencies = /bits/ 64 <1620000000 2700000000
+					 5400000000 8100000000>;
+};
+
+&pm8550_flash {
+	status = "okay";
+
+	led-0 {
+		color = <LED_COLOR_ID_YELLOW>;
+		flash-max-microamp = <2000000>;
+		flash-max-timeout-us = <1280000>;
+		function = LED_FUNCTION_FLASH;
+		function-enumerator = <0>;
+		led-max-microamp = <500000>;
+		led-sources = <1>, <4>;
+	};
+
+	led-1 {
+		color = <LED_COLOR_ID_WHITE>;
+		flash-max-microamp = <2000000>;
+		flash-max-timeout-us = <1280000>;
+		function = LED_FUNCTION_FLASH;
+		function-enumerator = <1>;
+		led-max-microamp = <500000>;
+		led-sources = <2>, <3>;
+	};
+};
+
+&pm8550_gpios {
+	backlight_therm_default: backlight-therm-default-state {
+		bias-high-impedance;
+		pins = "gpio3";
+	};
+
+	conn_therm2_default: conn-therm2-default-state {
+		bias-high-impedance;
+		pins = "gpio4";
+	};
+
+	display_therm_default: display-therm-default-state {
+		bias-high-impedance;
+		pins = "gpio2";
+	};
+
+	volume_up_n: volume-up-n-state {
+		bias-pull-up;
+		function = "normal";
+		input-enable;
+		pins = "gpio6";
+		power-source = <1>;
+	};
+};
+
+&pmih0108_gpios {
+	charger1_therm_default: charger1-therm-default-state {
+		bias-high-impedance;
+		pins = "gpio12";
+	};
+
+	quiet_therm_default: quiet-therm-default-state {
+		bias-high-impedance;
+		pins = "gpio6";
+	};
+};
+
+&pmk8550 {
+	pmk8550_vadc: adc@9000 {
+		compatible = "qcom,spmi-adc5-gen3";
+		reg = <0x9000>, <0x9100>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		#io-channel-cells = <1>;
+		interrupts = <0x0 0x90 0x1 IRQ_TYPE_EDGE_RISING>,
+			     <0x0 0x91 0x1 IRQ_TYPE_EDGE_RISING>;
+		interrupt-names = "adc-sdam0", "adc-sdam1";
+		pinctrl-0 = <&display_therm_default>, <&backlight_therm_default>,
+			    <&conn_therm2_default>, <&quiet_therm_default>;
+		pinctrl-names = "default";
+
+		channel@0 {
+			reg = <0x000>;
+			label = "pmk8550_offset_ref";
+			qcom,pre-scaling = <1 1>;
+		};
+
+		channel@1 {
+			reg = <0x001>;
+			label = "pmk8550_vref_1p25";
+			qcom,pre-scaling = <1 1>;
+		};
+
+		channel@3 {
+			reg = <0x003>;
+			label = "pmk8550_die_temp";
+			qcom,pre-scaling = <1 1>;
+		};
+
+		channel@44 {
+			reg = <0x044>;
+			label = "pmk8550_xo_therm";
+			qcom,hw-settle-time = <200>;
+			qcom,pre-scaling = <1 1>;
+			qcom,ratiometric;
+		};
+
+		channel@103 {
+			reg = <0x103>;
+			label = "pm8550_die_temp";
+			qcom,pre-scaling = <1 1>;
+		};
+
+		channel@144 {
+			reg = <0x144>;
+			label = "pm8550_cpu_therm";
+			qcom,hw-settle-time = <200>;
+			qcom,pre-scaling = <1 1>;
+			qcom,ratiometric;
+		};
+
+		channel@145 {
+			reg = <0x145>;
+			label = "pm8550_flash_therm";
+			qcom,hw-settle-time = <200>;
+			qcom,pre-scaling = <1 1>;
+			qcom,ratiometric;
+		};
+
+		channel@146 {
+			reg = <0x146>;
+			label = "pm8550_wifi_therm";
+			qcom,hw-settle-time = <200>;
+			qcom,pre-scaling = <1 1>;
+			qcom,ratiometric;
+		};
+
+		channel@149 {
+			reg = <0x149>;
+			label = "pm8550_display_therm";
+			qcom,hw-settle-time = <200>;
+			qcom,pre-scaling = <1 1>;
+			qcom,ratiometric;
+		};
+
+		channel@14a {
+			reg = <0x14a>;
+			label = "pm8550_backlight_therm";
+			qcom,hw-settle-time = <200>;
+			qcom,pre-scaling = <1 1>;
+			qcom,ratiometric;
+		};
+
+		channel@14b {
+			reg = <0x14b>;
+			label = "pm8550_conn_therm2";
+			qcom,hw-settle-time = <200>;
+			qcom,pre-scaling = <1 1>;
+			qcom,ratiometric;
+		};
+
+		channel@18e {
+			reg = <0x18e>;
+			label = "pm8550_vph_pwr";
+			qcom,pre-scaling = <1 3>;
+		};
+
+		channel@703 {
+			qcom,adc5-gen4;
+			reg = <0x703>;
+			label = "pmih010x_die_temp";
+			qcom,pre-scaling = <1 1>;
+		};
+
+		channel@744 {
+			qcom,adc5-gen4;
+			reg = <0x744>;
+			label = "pmih010x_batt_therm";
+			qcom,pre-scaling = <1 1>;
+			qcom,ratiometric;
+		};
+
+		channel@747 {
+			qcom,adc5-gen4;
+			reg = <0x747>;
+			label = "pmih010x_conn_therm";
+			qcom,pre-scaling = <1 1>;
+			qcom,ratiometric;
+		};
+
+		channel@74a {
+			qcom,adc5-gen4;
+			reg = <0x74a>;
+			label = "pmih010x_quiet_therm";
+			qcom,pre-scaling = <1 1>;
+			qcom,ratiometric;
+		};
+
+		channel@74d {
+			qcom,adc5-gen4;
+			reg = <0x74d>;
+			label = "pmih010x_charger1_therm";
+			qcom,pre-scaling = <1 1>;
+			qcom,ratiometric;
+		};
+	};
+};
+
+&pmk8550_rtc {
+	nvmem-cells = <&rtc_offset>;
+	nvmem-cell-names = "offset";
+};
+
+&pmk8550_sdam_2 {
+	rtc_offset: rtc-offset@bc {
+		reg = <0xbc 0x4>;
+	};
+};
+
+&pm8550_pwm {
+	status = "okay";
+
+	multi-led {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		color = <LED_COLOR_ID_RGB>;
+		function = LED_FUNCTION_STATUS;
+
+		led@1 {
+			reg = <1>;
+			color = <LED_COLOR_ID_RED>;
+		};
+
+		led@2 {
+			reg = <2>;
+			color = <LED_COLOR_ID_GREEN>;
+		};
+
+		led@3 {
+			reg = <3>;
+			color = <LED_COLOR_ID_BLUE>;
+		};
+	};
+};
+
+&pon_pwrkey {
+	status = "okay";
+};
+
+&pon_resin {
+	linux,code = <KEY_VOLUMEDOWN>;
+
+	status = "okay";
+};
+
+&pcie0 {
+	pinctrl-0 = <&pcie0_default_state>;
+	pinctrl-names = "default";
+
+	status = "okay";
+};
+
+&pcie0_phy {
+	vdda-phy-supply = <&vreg_l1f_0p88>;
+	vdda-pll-supply = <&vreg_l3g_1p2>;
+
+	status = "okay";
+};
+
+&pcieport0 {
+	reset-gpios = <&tlmm 102 GPIO_ACTIVE_LOW>;
+	wake-gpios = <&tlmm 104 GPIO_ACTIVE_LOW>;
+
+	wifi@0 {
+		compatible = "pci17cb,110e";
+		reg = <0x10000 0x0 0x0 0x0 0x0>;
+
+		vddaon-supply = <&vreg_pmu_aon_0p59>;
+		vddpcie0p9-supply = <&vreg_pmu_pcie_0p9>;
+		vddpcie1p8-supply = <&vreg_pmu_pcie_1p8>;
+		vddrfa0p8-supply = <&vreg_pmu_rfa_0p8>;
+		vddrfa1p2-supply = <&vreg_pmu_rfa_1p2>;
+		vddrfa1p8-supply = <&vreg_pmu_rfa_1p8>;
+		vddrfacmn-supply = <&vreg_pmu_rfa_cmn>;
+		vddwlcx-supply = <&vreg_pmu_wlcx_0p8>;
+		vddwlmx-supply = <&vreg_pmu_wlmx_0p85>;
+	};
+};
+
+&pmih0108_eusb2_repeater {
+	vdd18-supply = <&vreg_l15b_1p8>;
+	vdd3-supply = <&vreg_l5b_3p1>;
+	qcom,squelch-detector-bp = <(-2000)>;
+	qcom,tune-usb2-amplitude = /bits/ 8 <0xa>;
+	qcom,tune-usb2-preem = /bits/ 8 <0x3>;
+
+	status = "okay";
+};
+
+&gpi_dma1 {
+	status = "okay";
+};
+
+&gpi_dma2 {
+	status = "okay";
+};
+
+&qup_i2c3_data_clk {
+	bias-pull-up = <2200>;
+};
+
+&qupv3_1 {
+	status = "okay";
+};
+
+&qupv3_2 {
+	status = "okay";
+};
+
+&remoteproc_adsp {
+	firmware-name = "qcom/sm8750/xiaomi/piano/adsp.mbn",
+			"qcom/sm8750/xiaomi/piano/adsp_dtb.mbn";
+
+	status = "okay";
+};
+
+&remoteproc_cdsp {
+	firmware-name = "qcom/sm8750/xiaomi/piano/cdsp.mbn",
+			"qcom/sm8750/xiaomi/piano/cdsp_dtb.mbn";
+
+	status = "okay";
+};
+
+&spi2 {
+	pinctrl-0 = <&qup_spi2_data_clk>, <&qup_spi2_cs>;
+	pinctrl-names = "default";
+
+	status = "okay";
+
+	touchscreen@0 {
+		compatible = "novatek,nt36532";
+		reg = <0>;
+		interrupt-parent = <&tlmm>;
+		interrupts = <162 IRQ_TYPE_EDGE_RISING>;
+		/*
+		 * Touch and display are one TDDI die sharing a reset line that
+		 * the panel owns, so the controller has to be restarted every
+		 * time the panel is powered back up.
+		 */
+		panel = <&panel0>;
+		pinctrl-0 = <&touch_int_n>;
+		pinctrl-names = "default";
+		/*
+		 * The controller keeps no firmware of its own, and the BOE and
+		 * CSOT modules need different images. The same strap the panel
+		 * uses tells them apart; the low state selects CSOT.
+		 */
+		lcd-id-gpios = <&tlmm 100 GPIO_ACTIVE_HIGH>;
+		firmware-name = "novatek/nt36532-piano-csot.bin",
+				"novatek/nt36532-piano-boe.bin";
+		spi-max-frequency = <19200000>;
+		/* The node grid runs along the panel, first node at the bottom */
+		touchscreen-size-x = <3200>;
+		touchscreen-size-y = <2136>;
+		touchscreen-inverted-y;
+		vdd-supply = <&touch_avdd>;
+		vddio-supply = <&vreg_l12b_1p8>;
+	};
+};
+
+&spi15 {
+	status = "okay";
+
+	irled@0 {
+		compatible = "ir-spi-led";
+		reg = <0>;
+		power-supply = <&vph_pwr>;
+		spi-max-frequency = <19200000>;
+	};
+};
+
+&tlmm {
+	gpio-reserved-ranges = <36 4>, <48 4>, <74 1>;
+
+	camera_rear_avdd_en: camera-rear-avdd-en-state {
+		bias-disable;
+		drive-strength = <2>;
+		function = "gpio";
+		pins = "gpio175";
+	};
+
+	camera_rear_reset: camera-rear-reset-state {
+		bias-disable;
+		drive-strength = <2>;
+		function = "gpio";
+		pins = "gpio6";
+	};
+
+	camera_front_avdd_en: camera-front-avdd-en-state {
+		bias-disable;
+		drive-strength = <2>;
+		function = "gpio";
+		pins = "gpio176";
+	};
+
+	camera_front_reset: camera-front-reset-state {
+		bias-disable;
+		drive-strength = <2>;
+		function = "gpio";
+		pins = "gpio7";
+	};
+
+	backlight_hwen: backlight-hwen-state {
+		bias-disable;
+		drive-strength = <2>;
+		function = "gpio";
+		pins = "gpio2";
+	};
+
+	bt_default: bt-default-state {
+		sw-ctrl-pins {
+			bias-pull-down;
+			function = "gpio";
+			pins = "gpio18";
+		};
+	};
+
+	nfc_tag_int: nfc-tag-int-state {
+		bias-pull-up;
+		drive-strength = <2>;
+		function = "gpio";
+		input-enable;
+		pins = "gpio209";
+	};
+
+
+
+	hall_lid_n: hall-lid-n-state {
+		bias-pull-up;
+		drive-strength = <2>;
+		function = "gpio";
+		input-enable;
+		pins = "gpio80";
+	};
+
+	kbd_default: kbd-default-state {
+		reset-status-pins {
+			bias-disable;
+			drive-strength = <2>;
+			function = "gpio";
+			pins = "gpio95", "gpio188";
+		};
+
+		sleep-pins {
+			bias-pull-down;
+			drive-strength = <2>;
+			function = "gpio";
+			pins = "gpio3";
+		};
+	};
+
+	mdp_vsync: mdp-vsync-state {
+		bias-pull-down;
+		drive-strength = <2>;
+		function = "mdp_vsync";
+		pins = "gpio86";
+	};
+
+	panel_lcd_id: panel-lcd-id-state {
+		bias-disable;
+		drive-strength = <2>;
+		function = "gpio";
+		input-enable;
+		pins = "gpio100";
+	};
+
+	panel_reset_n: panel-reset-n-state {
+		bias-disable;
+		drive-strength = <8>;
+		function = "gpio";
+		pins = "gpio98";
+	};
+
+	wireless_charger_int: wireless-charger-int-state {
+		bias-pull-up;
+		drive-strength = <2>;
+		function = "gpio";
+		input-enable;
+		pins = "gpio78";
+	};
+
+	charge_pump_int: charge-pump-int-state {
+		bias-disable;
+		drive-strength = <2>;
+		function = "gpio";
+		input-enable;
+		pins = "gpio68";
+	};
+
+	panel_vsn_en: panel-vsn-en-state {
+		bias-disable;
+		drive-strength = <2>;
+		function = "gpio";
+		pins = "gpio118";
+	};
+
+	panel_vsp_en: panel-vsp-en-state {
+		bias-disable;
+		drive-strength = <2>;
+		function = "gpio";
+		pins = "gpio117";
+	};
+
+	touch_avdd_en: touch-avdd-en-state {
+		bias-disable;
+		drive-strength = <2>;
+		function = "gpio";
+		pins = "gpio114";
+	};
+
+	touch_int_n: touch-int-n-state {
+		bias-pull-up;
+		drive-strength = <2>;
+		function = "gpio";
+		input-enable;
+		pins = "gpio162";
+	};
+
+
+	spk_bl_reset: spk-bl-reset-state {
+		bias-disable;
+		drive-strength = <2>;
+		function = "gpio";
+		pins = "gpio108";
+	};
+
+	spk_br_reset: spk-br-reset-state {
+		bias-disable;
+		drive-strength = <2>;
+		function = "gpio";
+		pins = "gpio107";
+	};
+
+	spk_tl_reset: spk-tl-reset-state {
+		bias-disable;
+		drive-strength = <2>;
+		function = "gpio";
+		pins = "gpio128";
+	};
+
+	spk_tr_reset: spk-tr-reset-state {
+		bias-disable;
+		drive-strength = <2>;
+		function = "gpio";
+		pins = "gpio129";
+	};
+
+	wlan_en: wlan-en-state {
+		bias-pull-down;
+		drive-strength = <8>;
+		function = "gpio";
+		pins = "gpio16";
+	};
+};
+
+&uart7 {
+	status = "okay";
+};
+
+&uart14 {
+	pinctrl-0 = <&qup_uart14_default>, <&qup_uart14_cts_rts>;
+	pinctrl-names = "default";
+
+	status = "okay";
+
+	bluetooth {
+		compatible = "qcom,wcn7860-bt";
+		max-speed = <3200000>;
+		vddaon-supply = <&vreg_pmu_aon_0p59>;
+		vddrfa0p8-supply = <&vreg_pmu_rfa_0p8>;
+		vddrfa1p2-supply = <&vreg_pmu_rfa_1p2>;
+		vddrfa1p8-supply = <&vreg_pmu_rfa_1p8>;
+		vddrfacmn-supply = <&vreg_pmu_rfa_cmn>;
+		vddwlcx-supply = <&vreg_pmu_wlcx_0p8>;
+		vddwlmx-supply = <&vreg_pmu_wlmx_0p85>;
+	};
+};
+
+/*
+ * The Trace NOC never reports a PrimeCell ID on this part - the AMBA core reads
+ * 0x00000000 where every other CoreSight block returns a real one - so it can
+ * never match its driver and only sits in the deferred probe list.
+ */
+&tn {
+	status = "disabled";
+};
+
+&ufs_mem_phy {
+	vdda-phy-supply = <&vreg_l1j_0p91>;
+	vdda-pll-supply = <&vreg_l3g_1p2>;
+
+	status = "okay";
+};
+
+&ufs_mem_hc {
+	reset-gpios = <&tlmm 215 GPIO_ACTIVE_LOW>;
+	vcc-max-microamp = <1300000>;
+	vcc-supply = <&vreg_l17b_2p5>;
+	vccq-max-microamp = <1200000>;
+	vccq-supply = <&vreg_l1d_1p2>;
+
+	status = "okay";
+};
+
+&usb {
+	status = "okay";
+};
+
+&usb_dp_qmpphy {
+	vdda-phy-supply = <&vreg_l2d_0p88>;
+	vdda-pll-supply = <&vreg_l3g_1p2>;
+
+	status = "okay";
+};
+
+&usb_dp_qmpphy_out {
+	remote-endpoint = <&pmic_glink_ss_in>;
+};
+
+&usb_dwc3_hs {
+	remote-endpoint = <&pmic_glink_hs_in>;
+};
+
+&usb_hsphy {
+	phys = <&pmih0108_eusb2_repeater>;
+	vdd-supply = <&vreg_l2d_0p88>;
+	vdda12-supply = <&vreg_l3g_1p2>;
+
+	status = "okay";
+};
+
+&scm {
+	qcom,dload-mode = <&tcsr 0x19000>;
+};
+
+&soc {
+	tcsr: syscon@1fc0000 {
+		compatible = "qcom,sm8750-tcsr-regs", "syscon";
+		reg = <0x0 0x01fc0000 0x0 0x30000>;
+	};
+};
+
+/* ABL Compatible Section */
+/ {
+	qcom,msm-id = <0x100026a 0x20000>, <0x000027f 0x10000>,
+		      <0x000026a 0x10000>, <0x000027f 0x20000>,
+		      <0x000026a 0x20000>, <0x100027f 0x10000>,
+		      <0x100026a 0x10000>, <0x100027f 0x20000>;
+        qcom,board-id = <0x40008 0>;
+};
