@@ -446,14 +446,14 @@ int dev_pm_opp_of_find_icc_paths(struct device *dev,
 	int ret, i, count, num_paths;
 	struct icc_path **paths;
 
+	if (!np)
+		return 0;
+
 	ret = _bandwidth_supported(dev, opp_table);
 	if (ret == -EINVAL)
 		return 0; /* Empty OPP table is a valid corner-case, let's not fail */
 	else if (ret <= 0)
 		return ret;
-
-	if (!np)
-		return 0;
 
 	ret = 0;
 
