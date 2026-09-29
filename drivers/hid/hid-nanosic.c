@@ -20,6 +20,7 @@
  */
 
 #include <linux/bits.h>
+#include <linux/completion.h>
 #include <linux/delay.h>
 #include <linux/device.h>
 #include <linux/devm-helpers.h>
@@ -117,6 +118,8 @@
 #define NANOSIC_ATTACH_CONNECTED	BIT(0)
 #define NANOSIC_ATTACH_POWER		BIT(1)
 #define NANOSIC_ATTACH_POGO		BIT(6)
+#define NANOSIC_ATTACH_TIMEOUT		msecs_to_jiffies(500)
+
 #define NANOSIC_ATTACH_REPORTED		(NANOSIC_ATTACH_CONNECTED | \
 					 NANOSIC_ATTACH_POWER | \
 					 NANOSIC_ATTACH_POGO)
@@ -342,6 +345,7 @@ struct nanosic {
 	struct i2c_client *client;
 	struct hid_device *hid;
 	struct input_dev *wake_input;
+	struct completion attach_known;
 	struct led_classdev backlight;
 
 	struct gpio_desc *reset_gpio;
@@ -794,6 +798,7 @@ static void nanosic_vendor_report(struct nanosic *nano, const u8 *report,
 {
 	struct device *dev = &nano->client->dev;
 	const u8 *d = report + 2;
+	bool attach_changed;
 	u8 attach;
 
 	if (len < 2 + 3)
@@ -845,13 +850,18 @@ static void nanosic_vendor_report(struct nanosic *nano, const u8 *report,
 		 * configuration.  The input core drops the report if the
 		 * state has not moved, so this can run on every update.
 		 */
-		input_report_switch(nano->wake_input, SW_TABLET_MODE,
-				    !(attach & NANOSIC_ATTACH_CONNECTED));
-		input_sync(nano->wake_input);
+		if (nano->wake_input) {
+			input_report_switch(nano->wake_input, SW_TABLET_MODE,
+					    !(attach & NANOSIC_ATTACH_CONNECTED));
+			input_sync(nano->wake_input);
+		}
 
-		if (nano->attach_state == attach)
-			break;
+		attach_changed = nano->attach_state != attach;
 		nano->attach_state = attach;
+		complete_all(&nano->attach_known);
+
+		if (!attach_changed)
+			break;
 		dev_info(dev, "keyboard %s%s%s\n",
 			 attach & NANOSIC_ATTACH_CONNECTED ? "attached" :
 							     "detached",
@@ -999,6 +1009,9 @@ static irqreturn_t nanosic_wake_irq(int irq, void *data)
 		return IRQ_HANDLED;
 
 	WRITE_ONCE(nano->suspended, false);
+
+	if (!nano->wake_input)
+		return IRQ_HANDLED;
 
 	input_report_key(nano->wake_input, KEY_WAKEUP, 1);
 	input_sync(nano->wake_input);
@@ -1211,14 +1224,8 @@ static int nanosic_register_wake_input(struct nanosic *nano)
 	input_set_capability(input, EV_KEY, KEY_WAKEUP);
 	input_set_capability(input, EV_SW, SW_TABLET_MODE);
 
-	/*
-	 * Start out in tablet mode.  Probe asks the MCU for the attach
-	 * state right after this, and a keyboard that is there answers and
-	 * corrects it; one that is not there answers with the same zero the
-	 * driver already assumes, so the initial state has to be the one
-	 * that a bare tablet needs.
-	 */
-	__set_bit(SW_TABLET_MODE, input->sw);
+	if (!(nano->attach_state & NANOSIC_ATTACH_CONNECTED))
+		__set_bit(SW_TABLET_MODE, input->sw);
 
 	nano->wake_input = input;
 
@@ -1243,6 +1250,7 @@ static int nanosic_probe(struct i2c_client *client)
 		return -ENOMEM;
 
 	nano->client = client;
+	init_completion(&nano->attach_known);
 	i2c_set_clientdata(client, nano);
 
 	ret = devm_mutex_init(dev, &nano->io_lock);
@@ -1304,10 +1312,6 @@ static int nanosic_probe(struct i2c_client *client)
 	/* The application firmware needs this long before it answers. */
 	msleep(200);
 
-	ret = nanosic_register_wake_input(nano);
-	if (ret)
-		return dev_err_probe(dev, ret, "cannot register wake input\n");
-
 	ret = nanosic_register_hid(nano);
 	if (ret)
 		return dev_err_probe(dev, ret, "cannot register HID device\n");
@@ -1358,6 +1362,15 @@ static int nanosic_probe(struct i2c_client *client)
 	msleep(10);
 	nanosic_send_cmd(nano, NANOSIC_DEV_KEYBOARD, NANOSIC_CMD_HALL_STATE,
 			 (const u8 []){ 0x01 }, 1);
+
+	if (!wait_for_completion_timeout(&nano->attach_known,
+					 NANOSIC_ATTACH_TIMEOUT))
+		dev_warn(dev, "no attach state from the MCU; assuming no keyboard\n");
+
+	ret = nanosic_register_wake_input(nano);
+	if (ret)
+		return dev_err_probe(dev, ret, "cannot register wake input\n");
+
 	msleep(10);
 	nanosic_send_cmd(nano, NANOSIC_DEV_KEYBOARD, NANOSIC_CMD_VERSION,
 			 NULL, 0);
