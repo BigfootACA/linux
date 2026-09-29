@@ -36,6 +36,28 @@
 
 #define EEM_HEAD	2		/* 2 byte header */
 
+#define EEM_KDNET	BIT(0)
+
+#define KDNET_EEM_MODE	0xeeee
+
+static bool eem_is_kdnet(struct usbnet *dev)
+{
+	return dev->driver_info->data & EEM_KDNET;
+}
+
+static u16 eem_get_header(struct usbnet *dev, const void *p)
+{
+	return eem_is_kdnet(dev) ? get_unaligned_be16(p) : get_unaligned_le16(p);
+}
+
+static void eem_put_header(struct usbnet *dev, u16 header, void *p)
+{
+	if (eem_is_kdnet(dev))
+		put_unaligned_be16(header, p);
+	else
+		put_unaligned_le16(header, p);
+}
+
 /*-------------------------------------------------------------------------*/
 
 static void eem_linkcmd_complete(struct urb *urb)
@@ -91,6 +113,7 @@ static struct sk_buff *eem_tx_fixup(struct usbnet *dev, struct sk_buff *skb,
 {
 	struct sk_buff	*skb2 = NULL;
 	u16		len = skb->len;
+	u16		header;
 	u32		crc = 0;
 	int		padlen = 0;
 
@@ -130,23 +153,27 @@ static struct sk_buff *eem_tx_fixup(struct usbnet *dev, struct sk_buff *skb,
 	skb = skb2;
 
 done:
-	/* we don't use the "no Ethernet CRC" option */
-	crc = crc32_le(~0, skb->data, skb->len);
-	crc = ~crc;
+	if (eem_is_kdnet(dev)) {
+		put_unaligned_be32(0xdeadbeef, skb_put(skb, 4));
+		header = skb->len;
+	} else {
+		crc = crc32_le(~0, skb->data, skb->len);
+		crc = ~crc;
 
-	put_unaligned_le32(crc, skb_put(skb, 4));
+		put_unaligned_le32(crc, skb_put(skb, 4));
+		header = BIT(14) | skb->len;
+	}
 
 	/* EEM packet header format:
 	 * b0..13:	length of ethernet frame
 	 * b14:		bmCRC (1 == valid Ethernet CRC)
 	 * b15:		bmType (0 == data)
 	 */
-	len = skb->len;
-	put_unaligned_le16(BIT(14) | len, skb_push(skb, 2));
+	eem_put_header(dev, header, skb_push(skb, 2));
 
 	/* Bundle a zero length EEM packet if needed */
 	if (padlen)
-		put_unaligned_le16(0, skb_put(skb, 2));
+		eem_put_header(dev, 0, skb_put(skb, 2));
 
 	return skb;
 }
@@ -178,7 +205,7 @@ static int eem_rx_fixup(struct usbnet *dev, struct sk_buff *skb)
 		 * b0..14:	EEM type dependent (Data or Command)
 		 * b15:		bmType
 		 */
-		header = get_unaligned_le16(skb->data);
+		header = eem_get_header(dev, skb->data);
 		skb_pull(skb, EEM_HEAD);
 
 		/*
@@ -218,8 +245,8 @@ static int eem_rx_fixup(struct usbnet *dev, struct sk_buff *skb)
 				if (unlikely(!skb2))
 					goto next;
 				skb_trim(skb2, len);
-				put_unaligned_le16(BIT(15) | BIT(11) | len,
-						skb_push(skb2, 2));
+				eem_put_header(dev, BIT(15) | BIT(11) | len,
+					       skb_push(skb2, 2));
 				eem_linkcmd(dev, skb2);
 				break;
 
@@ -335,9 +362,39 @@ static const struct driver_info eem_info = {
 	.tx_fixup =	eem_tx_fixup,
 };
 
+static int eem_kdnet_bind(struct usbnet *dev, struct usb_interface *intf)
+{
+	int status;
+
+	status = eem_bind(dev, intf);
+	if (status < 0)
+		return status;
+
+	return usb_control_msg_send(dev->udev, 0,
+				    USB_CDC_REQ_SET_CONTROL_LINE_STATE,
+				    USB_DIR_OUT | USB_TYPE_CLASS | USB_RECIP_INTERFACE,
+				    KDNET_EEM_MODE,
+				    intf->cur_altsetting->desc.bInterfaceNumber,
+				    NULL, 0, USB_CTRL_SET_TIMEOUT, GFP_KERNEL);
+}
+
+static const struct driver_info eem_kdnet_info = {
+	.description =	"KDNET EEM Device",
+	.flags =	FLAG_ETHER | FLAG_POINTTOPOINT | FLAG_NO_SETINT,
+	.bind =		eem_kdnet_bind,
+	.data =		EEM_KDNET,
+	.rx_fixup =	eem_rx_fixup,
+	.tx_fixup =	eem_tx_fixup,
+};
+
 /*-------------------------------------------------------------------------*/
 
 static const struct usb_device_id products[] = {
+	{
+		USB_DEVICE_AND_INTERFACE_INFO(0x045e, 0x064d, USB_CLASS_COMM,
+					      USB_CDC_SUBCLASS_EEM, USB_CDC_PROTO_EEM),
+		.driver_info = (unsigned long)&eem_kdnet_info,
+	},
 {
 	USB_INTERFACE_INFO(USB_CLASS_COMM, USB_CDC_SUBCLASS_EEM,
 			USB_CDC_PROTO_EEM),
