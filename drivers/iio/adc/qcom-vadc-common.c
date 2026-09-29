@@ -543,12 +543,12 @@ static int qcom_vadc7_scale_hw_calib_therm(
 	s64 resistance = adc_code;
 	int ret, result;
 
-	if (adc_code >= RATIO_MAX_ADC7)
+	if (adc_code >= data->full_scale_code_raw)
 		return -EINVAL;
 
 	/* (ADC code * R_PULLUP (100Kohm)) / (full_scale_code - ADC code)*/
 	resistance *= R_PU_100K;
-	resistance = div64_s64(resistance, RATIO_MAX_ADC7 - adc_code);
+	resistance = div64_s64(resistance, data->full_scale_code_raw - adc_code);
 
 	ret = qcom_vadc_map_voltage_temp(adcmap7_100k,
 				 ARRAY_SIZE(adcmap7_100k),

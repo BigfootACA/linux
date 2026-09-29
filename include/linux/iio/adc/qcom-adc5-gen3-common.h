@@ -100,6 +100,27 @@
 #define ADC5_GEN3_AMUX3_GPIO_100K_PU		0x4c
 #define ADC5_GEN3_AMUX4_GPIO_100K_PU		0x4d
 
+#define ADC5_GEN4_OFFSET_REF			0x00
+#define ADC5_GEN4_1P25VREF			0x01
+#define ADC5_GEN4_VREF_VADC			0x02
+#define ADC5_GEN4_DIE_TEMP			0x03
+#define ADC5_GEN4_USB_SNS_DIV20			0x11
+#define ADC5_GEN4_VIN_DIV20_MUX			0x12
+#define ADC5_GEN4_VPH_PWR			0x8e
+#define ADC5_GEN4_VBAT_SNS_QBG			0x8f
+
+#define ADC5_GEN4_AMUX1_THM_100K_PU		0x44
+#define ADC5_GEN4_AMUX2_THM_100K_PU		0x45
+#define ADC5_GEN4_AMUX3_THM_100K_PU		0x46
+#define ADC5_GEN4_AMUX4_THM_100K_PU		0x47
+#define ADC5_GEN4_AMUX5_THM_100K_PU		0x48
+#define ADC5_GEN4_AMUX6_THM_100K_PU		0x49
+#define ADC5_GEN4_AMUX1_GPIO_100K_PU		0x4a
+#define ADC5_GEN4_AMUX2_GPIO_100K_PU		0x4b
+#define ADC5_GEN4_AMUX3_GPIO_100K_PU		0x4c
+#define ADC5_GEN4_AMUX4_GPIO_100K_PU		0x4d
+#define ADC5_GEN4_AMUX5_GPIO_100K_PU		0x5e
+
 #define ADC5_MAX_CHANNEL			0xc0
 
 enum adc5_cal_method {
@@ -157,6 +178,7 @@ struct adc5_device_data {
  *	physical units desired by the client for the channel.
  */
 struct adc5_channel_common_prop {
+	const struct adc5_data *data;
 	unsigned int channel;
 	enum adc5_cal_method cal_method;
 	unsigned int decimation;
