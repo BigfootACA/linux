@@ -132,6 +132,16 @@
 		};
 	};
 
+	fingerprint {
+		compatible = "xiaomi,xiaomi-fp";
+		irq-gpios = <&tlmm 85 GPIO_ACTIVE_HIGH>;
+		pinctrl-0 = <&fingerprint_irq>, <&fingerprint_reset>;
+		pinctrl-names = "default";
+		reset-gpios = <&tlmm 73 GPIO_ACTIVE_LOW>;
+		vdd-supply = <&vreg_l9b_3p3>;
+		wakeup-source;
+		xiaomi,vendor-name = "p81_n1_142";
+	};
 
 	pmic-glink {
 		compatible = "xiaomi,mca-pmic-glink",
@@ -1821,7 +1831,21 @@
 		pins = "gpio209";
 	};
 
+	fingerprint_irq: fingerprint-irq-state {
+		bias-pull-down;
+		drive-strength = <2>;
+		function = "gpio";
+		input-enable;
+		pins = "gpio85";
+	};
 
+	fingerprint_reset: fingerprint-reset-state {
+		bias-disable;
+		drive-strength = <2>;
+		function = "gpio";
+		output-high;
+		pins = "gpio73";
+	};
 
 	hall_lid_n: hall-lid-n-state {
 		bias-pull-up;
