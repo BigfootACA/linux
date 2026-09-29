@@ -462,6 +462,7 @@ struct resource *platform_get_resource_byname(struct platform_device *dev,
 					      unsigned int type,
 					      const char *name)
 {
+	int index;
 	u32 i;
 
 	for (i = 0; i < dev->num_resources; i++) {
@@ -473,7 +474,12 @@ struct resource *platform_get_resource_byname(struct platform_device *dev,
 		if (type == resource_type(r) && !strcmp(r->name, name))
 			return r;
 	}
-	return NULL;
+
+	index = device_property_match_string(&dev->dev, "reg-names", name);
+	if (index < 0)
+		return NULL;
+
+	return platform_get_resource(dev, type, index);
 }
 EXPORT_SYMBOL_GPL(platform_get_resource_byname);
 
