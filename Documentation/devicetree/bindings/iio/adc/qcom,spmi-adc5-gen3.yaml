@@ -71,6 +71,15 @@ patternProperties:
         enum: [ 1, 2, 4, 8, 16 ]
         default: 1
 
+      qcom,adc5-gen4:
+        description:
+          The channel belongs to a PMIC5 Gen4 peripheral, such as a charger
+          PMIC, addressed over the virtual SID of this Gen3 ADC. Those
+          peripherals return a 16-bit ratiometric result instead of the
+          14-bit one of a Gen3 peripheral, and a few of their muxes carry
+          different signals, so the channel is scaled accordingly.
+        type: boolean
+
       qcom,adc-tm:
         description:
           ADC_TM is a threshold monitoring feature in HW which can be enabled
