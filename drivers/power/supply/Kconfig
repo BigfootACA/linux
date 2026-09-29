@@ -852,6 +852,30 @@ config CHARGER_BQ25890
 	help
 	  Say Y to enable support for the TI BQ25890 battery charger.
 
+config CHARGER_SC96231
+	tristate "Southchip SC96231 wireless power transmitter"
+	depends on I2C
+	select REGMAP_I2C
+	help
+	  Say Y to enable support for the Southchip SC96231 wireless charging
+	  chip acting as a transmitter, which is how a tablet charges an
+	  accessory laid on its back.
+
+	  To compile this driver as a module, choose M here: the module will be
+	  called sc96231_charger.
+
+config CHARGER_SC8541
+	tristate "Southchip SC8541 charge pump"
+	depends on I2C
+	select REGMAP_I2C
+	help
+	  Say Y to enable support for the Southchip SC8541 switched capacitor
+	  charger, a 2:1 and 4:1 charge pump used alongside a main charger to
+	  raise the charging current a USB PD PPS adapter can deliver.
+
+	  To compile this driver as a module, choose M here: the module will be
+	  called sc8541_charger.
+
 config CHARGER_BQ25980
 	tristate "TI BQ25980 battery charger driver"
 	depends on I2C
