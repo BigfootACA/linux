@@ -1685,6 +1685,17 @@ config SM_VIDEOCC_8750
 	  Say Y if you want to support video devices and functionality such as
 	  video encode/decode.
 
+config SM_EVACC_8750
+	tristate "SM8750 EVA Clock Controller"
+	depends on ARM64 || COMPILE_TEST
+	select QCOM_GDSC
+	select SM_GCC_8750
+	help
+	  Support for the EVA clock controller on Qualcomm Technologies, Inc.
+	  SM8750 devices. This controller provides clocks, resets, and power
+	  domains for the EVA computer vision subsystem.
+	  Say Y if you want to support the computer vision processor.
+
 config SPMI_PMIC_CLKDIV
 	tristate "SPMI PMIC clkdiv Support"
 	depends on SPMI || COMPILE_TEST
