@@ -22,10 +22,10 @@ properties:
     $ref: /schemas/types.yaml#/definitions/string-array
     description:
       HDMI connector port names used to create named CEC notifiers for boards
-      that route multiple HDMI CEC lines to GPIO CEC adapters.
+      that route multiple HDMI CEC lines to GPIO CEC adapters. The names must
+      be distinct.
     minItems: 1
     maxItems: 2
-    uniqueItems: true
 
   enable-gpios:
     maxItems: 1
@@ -55,11 +55,16 @@ properties:
 
       port@1:
         $ref: /schemas/graph.yaml#/properties/port
-        description: HDMI output port.
+        description:
+          HDMI output port. Optional. The bridge terminates the HDMI HPD and
+          DDC lines itself, so on boards that do not route them to the SoC
+          there is nothing a downstream connector could detect and the graph
+          is left terminated at the bridge. Boards that fan the single output
+          stream out to two HDMI connectors also describe no output port -
+          both connectors carry the same stream.
 
     required:
       - port@0
-      - port@1
 
 required:
   - compatible
@@ -92,14 +97,6 @@ examples:
 
                     bridge_in: endpoint {
                         remote-endpoint = <&edp_out>;
-                    };
-                };
-
-                port@1 {
-                    reg = <1>;
-
-                    bridge_out: endpoint {
-                        remote-endpoint = <&hdmi_connector_in>;
                     };
                 };
             };
