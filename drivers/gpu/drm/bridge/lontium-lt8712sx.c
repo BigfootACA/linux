@@ -9,6 +9,7 @@
  */
 
 #include <linux/bitops.h>
+#include <linux/delay.h>
 #include <linux/device.h>
 #include <linux/firmware.h>
 #include <linux/gpio/consumer.h>
@@ -91,6 +92,7 @@ struct lt8712sx {
 	struct gpio_desc *enable_gpio;
 	struct mutex lock;
 	bool powered;
+	bool initialized;
 
 	const char *cec_port_names[LT8712SX_MAX_CEC_PORTS];
 	struct cec_notifier *cec_notifiers[LT8712SX_MAX_CEC_PORTS];
@@ -250,7 +252,7 @@ static int lt8712sx_power_on(struct lt8712sx *lt8712sx)
 		gpiod_set_value_cansleep(lt8712sx->power_gpio, 1);
 
 	if (lt8712sx->reset_gpio)
-		gpiod_set_value_cansleep(lt8712sx->reset_gpio, 1);
+		gpiod_set_value_cansleep(lt8712sx->reset_gpio, 0);
 
 	lt8712sx->powered = true;
 
@@ -269,7 +271,7 @@ static void lt8712sx_power_off_action(void *data)
 		gpiod_set_value_cansleep(lt8712sx->enable_gpio, 0);
 
 	if (lt8712sx->reset_gpio)
-		gpiod_set_value_cansleep(lt8712sx->reset_gpio, 0);
+		gpiod_set_value_cansleep(lt8712sx->reset_gpio, 1);
 
 	if (lt8712sx->power_gpio)
 		gpiod_set_value_cansleep(lt8712sx->power_gpio, 0);
@@ -287,12 +289,12 @@ static int lt8712sx_hw_reset(struct lt8712sx *lt8712sx)
 	if (!lt8712sx->reset_gpio)
 		return 0;
 
-	gpiod_set_value_cansleep(lt8712sx->reset_gpio, 1);
-	msleep(5);
 	gpiod_set_value_cansleep(lt8712sx->reset_gpio, 0);
-	msleep(5);
+	usleep_range(5000, 6000);
 	gpiod_set_value_cansleep(lt8712sx->reset_gpio, 1);
-	msleep(5);
+	usleep_range(5000, 6000);
+	gpiod_set_value_cansleep(lt8712sx->reset_gpio, 0);
+	usleep_range(5000, 6000);
 
 	return 0;
 }
@@ -743,6 +745,7 @@ static int lt8712sx_program_firmware(struct lt8712sx *lt8712sx,
 				     const struct lt8712sx_firmware *fw)
 {
 	bool needs_update;
+	bool flashing = false;
 	bool updated = false;
 	int ret;
 
@@ -763,6 +766,8 @@ static int lt8712sx_program_firmware(struct lt8712sx *lt8712sx,
 		ret = 0;
 		goto disable_i2c;
 	}
+
+	flashing = true;
 
 	ret = lt8712sx_configure(lt8712sx);
 	if (ret)
@@ -798,7 +803,8 @@ disable_i2c:
 	if (lt8712sx_i2c_disable(lt8712sx) && !ret)
 		ret = -EIO;
 
-	if (lt8712sx_hw_reset(lt8712sx) && !ret)
+	if ((flashing || !lt8712sx->initialized) &&
+	    lt8712sx_hw_reset(lt8712sx) && !ret)
 		ret = -EIO;
 
 unlock:
@@ -908,6 +914,9 @@ lt8712sx_connector_detect(struct drm_connector *connector, bool force)
 {
 	struct lt8712sx *lt8712sx = connector_to_lt8712sx(connector);
 	enum drm_connector_status status;
+
+	if (!lt8712sx->next_bridge)
+		return connector_status_unknown;
 
 	status = drm_bridge_detect(lt8712sx->next_bridge, connector);
 
@@ -1030,10 +1039,12 @@ static int lt8712sx_attach(struct drm_bridge *bridge,
 	struct lt8712sx *lt8712sx = bridge_to_lt8712sx(bridge);
 	int ret;
 
-	ret = drm_bridge_attach(encoder, lt8712sx->next_bridge, bridge,
-				DRM_BRIDGE_ATTACH_NO_CONNECTOR);
-	if (ret)
-		return ret;
+	if (lt8712sx->next_bridge) {
+		ret = drm_bridge_attach(encoder, lt8712sx->next_bridge, bridge,
+					DRM_BRIDGE_ATTACH_NO_CONNECTOR);
+		if (ret)
+			return ret;
+	}
 
 	if (flags & DRM_BRIDGE_ATTACH_NO_CONNECTOR)
 		return 0;
@@ -1044,7 +1055,8 @@ static int lt8712sx_attach(struct drm_bridge *bridge,
 	ret = drm_connector_init_with_ddc(bridge->dev, &lt8712sx->connector,
 					  &lt8712sx_con_funcs,
 					  lt8712sx->info->connector_type,
-					  lt8712sx->next_bridge->ddc);
+					  lt8712sx->next_bridge ?
+					  lt8712sx->next_bridge->ddc : NULL);
 	if (ret) {
 		DRM_ERROR("Failed to initialize connector\n");
 		return ret;
@@ -1135,14 +1147,14 @@ static int lt8712sx_probe(struct i2c_client *client)
 				     "failed to initialize regmap\n");
 
 	remote = of_graph_get_remote_node(dev->of_node, 1, -1);
-	if (!remote)
-		return dev_err_probe(dev, -ENODEV, "port@1 is unconnected\n");
 
-	lt8712sx->next_bridge = of_drm_find_bridge(remote);
-	of_node_put(remote);
-	if (!lt8712sx->next_bridge) {
-		dev_dbg(dev, "next bridge not found, deferring probe\n");
-		return -EPROBE_DEFER;
+	if (remote) {
+		lt8712sx->next_bridge = of_drm_find_bridge(remote);
+		of_node_put(remote);
+		if (!lt8712sx->next_bridge) {
+			dev_dbg(dev, "next bridge not found, deferring probe\n");
+			return -EPROBE_DEFER;
+		}
 	}
 
 	lt8712sx->vdd = devm_regulator_get_optional(dev, "vdd");
@@ -1162,10 +1174,25 @@ static int lt8712sx_probe(struct i2c_client *client)
 				     "failed to get power GPIO\n");
 
 	lt8712sx->reset_gpio = devm_gpiod_get_optional(dev, "reset",
-						       GPIOD_OUT_LOW);
+						       GPIOD_ASIS);
 	if (IS_ERR(lt8712sx->reset_gpio))
 		return dev_err_probe(dev, PTR_ERR(lt8712sx->reset_gpio),
 				     "failed to get reset GPIO\n");
+
+	lt8712sx->initialized = true;
+	if (lt8712sx->reset_gpio) {
+		ret = gpiod_get_value_cansleep(lt8712sx->reset_gpio);
+		if (ret < 0)
+			return dev_err_probe(dev, ret,
+					     "failed to read reset GPIO\n");
+
+		lt8712sx->initialized = !ret;
+
+		ret = gpiod_direction_output(lt8712sx->reset_gpio, ret);
+		if (ret)
+			return dev_err_probe(dev, ret,
+					     "failed to configure reset GPIO\n");
+	}
 
 	lt8712sx->enable_gpio = devm_gpiod_get_optional(dev, "enable",
 							GPIOD_OUT_LOW);
