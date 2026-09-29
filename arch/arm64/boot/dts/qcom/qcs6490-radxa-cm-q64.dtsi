@@ -514,6 +514,7 @@
 
 			regulator-always-on;
 		};
+
 		vreg_l6c_2p96: ldo6 {
 			regulator-name = "vreg_l6c_2p96";
 			regulator-min-microvolt = <1650000>;
