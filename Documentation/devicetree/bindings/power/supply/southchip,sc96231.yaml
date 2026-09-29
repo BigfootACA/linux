@@ -1,0 +1,65 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/power/supply/southchip,sc96231.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Southchip SC96231 wireless power transceiver
+
+maintainers:
+  - Junhao Xie <bigfoot@radxa.com>
+
+description:
+  The SC96231 drives a wireless charging coil. On the boards it is found on
+  only the transmitter side is wired up, so that the device can charge an
+  accessory laid against its back.
+
+allOf:
+  - $ref: power-supply.yaml#
+
+properties:
+  compatible:
+    const: southchip,sc96231
+
+  reg:
+    maxItems: 1
+
+  interrupts:
+    maxItems: 1
+
+  reverse-txon-gpios:
+    maxItems: 1
+    description: Enables the coil driver.
+
+  reverse-boost-gpios:
+    maxItems: 1
+    description: Enables the boost regulator feeding the coil driver.
+
+required:
+  - compatible
+  - reg
+  - reverse-txon-gpios
+  - reverse-boost-gpios
+
+unevaluatedProperties: false
+
+examples:
+  - |
+    #include <dt-bindings/gpio/gpio.h>
+    #include <dt-bindings/interrupt-controller/irq.h>
+
+    i2c {
+        #address-cells = <1>;
+        #size-cells = <0>;
+
+        charger@38 {
+            compatible = "southchip,sc96231";
+            reg = <0x38>;
+
+            interrupt-parent = <&tlmm>;
+            interrupts = <78 IRQ_TYPE_EDGE_FALLING>;
+
+            reverse-txon-gpios = <&tlmm 14 GPIO_ACTIVE_HIGH>;
+            reverse-boost-gpios = <&tlmm 120 GPIO_ACTIVE_HIGH>;
+        };
+    };
