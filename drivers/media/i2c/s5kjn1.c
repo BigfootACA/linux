@@ -34,11 +34,10 @@
 #define S5KJN1_EXPOSURE_STEP		1
 
 #define S5KJN1_REG_AGAIN		CCI_REG16(0x0204)
-#define S5KJN1_AGAIN_MIN		1
-#define S5KJN1_AGAIN_MAX		64
+#define S5KJN1_AGAIN_MIN		32
+#define S5KJN1_AGAIN_MAX		2048
 #define S5KJN1_AGAIN_STEP		1
-#define S5KJN1_AGAIN_DEFAULT		6
-#define S5KJN1_AGAIN_SHIFT		5
+#define S5KJN1_AGAIN_DEFAULT		192
 
 #define S5KJN1_REG_VTS			CCI_REG16(0x0340)
 #define S5KJN1_VTS_MAX			0xffff
@@ -86,6 +85,7 @@ struct s5kjn1_mode {
 	u32 exposure_margin;		/* Exposure margin */
 
 	const struct s5kjn1_reg_list reg_list;	/* Sensor register setting */
+	const struct s5kjn1_reg_list extra;
 };
 
 static const char * const s5kjn1_test_pattern_menu[] = {
@@ -721,6 +721,8 @@ static const struct cci_reg_sequence s5kjn1_8160x6144_10fps_mode[] = {
 	{ CCI_REG16(0x6226), 0x0000 },
 };
 
+#define S5KJN1_NUM_USABLE_MODES		1
+
 static const struct s5kjn1_mode s5kjn1_supported_modes[] = {
 	{
 		.width = 4080,
@@ -776,7 +778,7 @@ static int s5kjn1_set_ctrl(struct v4l2_ctrl *ctrl)
 	switch (ctrl->id) {
 	case V4L2_CID_ANALOGUE_GAIN:
 		ret = cci_write(s5kjn1->regmap, S5KJN1_REG_AGAIN,
-				ctrl->val << S5KJN1_AGAIN_SHIFT, NULL);
+				ctrl->val, NULL);
 		break;
 	case V4L2_CID_EXPOSURE:
 		ret = cci_write(s5kjn1->regmap, S5KJN1_REG_EXPOSURE,
@@ -933,6 +935,9 @@ static int s5kjn1_enable_streams(struct v4l2_subdev *sd,
 			    ARRAY_SIZE(init_array_setting), &ret);
 	cci_multi_reg_write(s5kjn1->regmap, reg_list->regs,
 			    reg_list->num_regs, &ret);
+	if (s5kjn1->mode->extra.num_regs)
+		cci_multi_reg_write(s5kjn1->regmap, s5kjn1->mode->extra.regs,
+				    s5kjn1->mode->extra.num_regs, &ret);
 	if (ret)
 		goto error;
 
@@ -1000,7 +1005,7 @@ static int s5kjn1_set_pad_format(struct v4l2_subdev *sd,
 	const struct s5kjn1_mode *mode;
 
 	mode = v4l2_find_nearest_size(s5kjn1_supported_modes,
-				      ARRAY_SIZE(s5kjn1_supported_modes),
+				      S5KJN1_NUM_USABLE_MODES,
 				      width, height,
 				      fmt->format.width, fmt->format.height);
 
@@ -1057,7 +1062,7 @@ static int s5kjn1_enum_frame_size(struct v4l2_subdev *sd,
 {
 	struct s5kjn1 *s5kjn1 = to_s5kjn1(sd);
 
-	if (fse->index >= ARRAY_SIZE(s5kjn1_supported_modes))
+	if (fse->index >= S5KJN1_NUM_USABLE_MODES)
 		return -EINVAL;
 
 	if (fse->code != s5kjn1_get_format_code(s5kjn1))
