@@ -14,6 +14,7 @@
 #include <linux/of_platform.h>
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
+#include <linux/property.h>
 #include <linux/reset.h>
 
 #include <linux/soc/qcom/ubwc.h>
@@ -427,7 +428,7 @@ static struct msm_mdss *msm_mdss_init(struct platform_device *pdev, bool is_mdp5
 	if (IS_ERR(msm_mdss->mdss_data))
 		return ERR_CAST(msm_mdss->mdss_data);
 
-	mdss_data = of_device_get_match_data(&pdev->dev);
+	mdss_data = device_get_match_data(&pdev->dev);
 	if (!mdss_data)
 		return ERR_PTR(-EINVAL);
 
