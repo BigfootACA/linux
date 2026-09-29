@@ -6058,6 +6058,10 @@
 			#redistributor-regions = <1>;
 			redistributor-stride = <0x0 0x40000>;
 
+			msi-controller;
+			mbi-ranges = <832 128>;
+			mbi-alias = <0x0 0x16010000>;
+
 			#address-cells = <2>;
 			#size-cells = <2>;
 			ranges;
@@ -6098,9 +6102,7 @@
 
 			linux,pci-domain = <0>;
 
-			msi-map = <0x0 &gic_its 0x1400 0x1>,
-				  <0x100 &gic_its 0x1401 0x1>;
-			msi-map-mask = <0xff00>;
+			msi-map = <0x0 &intc 0x0 0x1000>;
 
 			num-lanes = <2>;
 
@@ -6215,6 +6217,7 @@
 				#size-cells = <2>;
 				ranges;
 				phys = <&pcie0_phy>;
+				t-power-on-us = <80>;
 			};
 		};
 
