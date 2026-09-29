@@ -397,7 +397,7 @@ static void xiaomi_mca_monitor_work(struct work_struct *work)
 	int temp;
 
 	if (xiaomi_mca_read_u32(mca, MCA_PROP_USB_ONLINE, &online) || !online)
-		return;
+		goto again;
 
 	if (xiaomi_mca_read_u32(mca, MCA_PROP_BUCK_PACK_VBAT, &pack_mv) ||
 	    xiaomi_mca_read_u32(mca, MCA_PROP_BUCK_PACK_TBAT, (u32 *)&temp))
